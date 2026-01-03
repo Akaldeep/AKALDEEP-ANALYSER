@@ -103,34 +103,19 @@ async function getPeersFromYahoo(ticker: string): Promise<string[]> {
   }
 }
 
-async function getPeers(ticker: string): Promise<string[]> {
-  // Try Screener first
-  let peers = await getPeersFromScreener(ticker);
-  
-  // If Screener fails or returns few peers, try Yahoo
-  if (peers.length < 3) {
-    console.log("Screener found few peers, trying Yahoo Finance...");
-    const yahooPeers = await getPeersFromYahoo(ticker);
-    // Merge and unique
-    peers = Array.from(new Set([...peers, ...yahooPeers]));
-  }
-
-  return peers.slice(0, 10);
-}
-
 function parsePeers(html: string): string[] {
     const $ = cheerio.load(html);
     const peers: string[] = [];
     
-    // The peer comparison table is typically in a section with id "peers"
-    // We look for links to other companies in that table
+    // Screener.in's peer comparison table usually has a specific structure
+    // We strictly look for companies in the same Peer Comparison table
     $('#peers .data-table tbody tr').each((_, el) => {
         const anchor = $(el).find('td.text-left a[href^="/company/"]');
         if (anchor.length) {
             const href = anchor.attr('href');
             if (href) {
                 const slug = href.split('/')[2];
-                // Avoid adding the current company itself
+                // The current company is often the first row, we'll filter it out in getPeers
                 if (slug && !peers.includes(slug)) {
                     peers.push(slug);
                 }
@@ -138,23 +123,44 @@ function parsePeers(html: string): string[] {
         }
     });
 
-    // Fallback: look for any company links in data-tables if "peers" id not found
-    if (peers.length === 0) {
-      $('.data-table tbody tr').each((_, el) => {
-          const anchor = $(el).find('td a[href^="/company/"]');
+    // If specific peers section with id "peers" exists, it's the most accurate for industry peers
+    if (peers.length > 0) return peers.slice(0, 10);
+
+    // Fallback: look for the "Peer Comparison" heading and its following table
+    const peerHeading = $('h2:contains("Peer Comparison")');
+    if (peerHeading.length) {
+      peerHeading.nextAll('.data-table').first().find('tbody tr').each((_, el) => {
+          const anchor = $(el).find('td.text-left a[href^="/company/"]');
           if (anchor.length) {
               const href = anchor.attr('href');
-              if (href) {
-                  const slug = href.split('/')[2];
-                  if (slug && !peers.includes(slug)) {
-                      peers.push(slug);
-                  }
+              const slug = href?.split('/')[2];
+              if (slug && !peers.includes(slug)) {
+                  peers.push(slug);
               }
           }
       });
     }
 
     return peers.slice(0, 10);
+}
+
+async function getPeers(ticker: string): Promise<string[]> {
+  const symbol = ticker.split('.')[0];
+  // Try Screener first as it has high-quality industry categorization
+  let peers = await getPeersFromScreener(ticker);
+  
+  // Filter out the current company if it's in the list
+  peers = peers.filter(p => p.toLowerCase() !== symbol.toLowerCase());
+  
+  // If Screener fails or returns few peers, try Yahoo as a generic related-stock fallback
+  if (peers.length < 3) {
+    console.log("Screener found few peers, trying Yahoo Finance for related symbols...");
+    const yahooPeers = await getPeersFromYahoo(ticker);
+    peers = Array.from(new Set([...peers, ...yahooPeers]))
+      .filter(p => p.toLowerCase() !== symbol.toLowerCase());
+  }
+
+  return peers.slice(0, 10);
 }
 
 export async function registerRoutes(

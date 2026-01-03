@@ -115,8 +115,8 @@ export function ResultsSection({ data }: ResultsSectionProps) {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[30%] pl-6">Company Name</TableHead>
-                  <TableHead>Ticker</TableHead>
+                  <TableHead className="w-[40%] pl-6">Company Name</TableHead>
+                  <TableHead>Sector/Industry</TableHead>
                   <TableHead className="text-right">Beta (5Y)</TableHead>
                   <TableHead className="text-right pr-6">Status</TableHead>
                 </TableRow>
@@ -129,8 +129,8 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                       <TableCell className="font-medium pl-6 text-foreground/90">
                         {peer.name}
                       </TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {peer.ticker}
+                      <TableCell className="text-sm text-muted-foreground italic">
+                        Same Industry
                       </TableCell>
                       <TableCell className="text-right">
                         {peer.beta !== null ? (

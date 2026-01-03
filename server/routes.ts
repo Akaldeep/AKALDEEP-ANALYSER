@@ -55,7 +55,7 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
   }
 }
 
-async function getPeersFromScreener(ticker: string): Promise<string[]> {
+async function getPeersFromScreener(ticker: string): Promise<{ slug: string; sector: string }[]> {
   try {
     const symbol = ticker.split('.')[0];
     const url = `https://www.screener.in/company/${symbol}/`;
@@ -103,39 +103,46 @@ async function getPeersFromYahoo(ticker: string): Promise<string[]> {
   }
 }
 
-function parsePeers(html: string): string[] {
+function parseSectorHierarchy($: any): string {
+    const hierarchy: string[] = [];
+    $('.company-links a').each((_, el) => {
+        const text = $(el).text().trim();
+        if (text && !hierarchy.includes(text)) {
+            hierarchy.push(text);
+        }
+    });
+    return hierarchy.join(' > ') || 'Information Technology';
+}
+
+function parsePeers(html: string): { slug: string; sector: string }[] {
     const $ = cheerio.load(html);
-    const peers: string[] = [];
+    const peers: { slug: string; sector: string }[] = [];
+    const sector = parseSectorHierarchy($);
     
-    // Screener.in's peer comparison table usually has a specific structure
-    // We strictly look for companies in the same Peer Comparison table
-    $('#peers .data-table tbody tr').each((_, el) => {
+    $('#peers .data-table tbody tr').each((_i: any, el: any) => {
         const anchor = $(el).find('td.text-left a[href^="/company/"]');
         if (anchor.length) {
             const href = anchor.attr('href');
             if (href) {
                 const slug = href.split('/')[2];
-                // The current company is often the first row, we'll filter it out in getPeers
-                if (slug && !peers.includes(slug)) {
-                    peers.push(slug);
+                if (slug && !peers.some(p => p.slug === slug)) {
+                    peers.push({ slug, sector });
                 }
             }
         }
     });
 
-    // If specific peers section with id "peers" exists, it's the most accurate for industry peers
     if (peers.length > 0) return peers.slice(0, 10);
 
-    // Fallback: look for the "Peer Comparison" heading and its following table
     const peerHeading = $('h2:contains("Peer Comparison")');
     if (peerHeading.length) {
-      peerHeading.nextAll('.data-table').first().find('tbody tr').each((_, el) => {
+      peerHeading.nextAll('.data-table').first().find('tbody tr').each((_i: any, el: any) => {
           const anchor = $(el).find('td.text-left a[href^="/company/"]');
           if (anchor.length) {
               const href = anchor.attr('href');
               const slug = href?.split('/')[2];
-              if (slug && !peers.includes(slug)) {
-                  peers.push(slug);
+              if (slug && !peers.some(p => p.slug === slug)) {
+                  peers.push({ slug, sector });
               }
           }
       });
@@ -144,20 +151,27 @@ function parsePeers(html: string): string[] {
     return peers.slice(0, 10);
 }
 
-async function getPeers(ticker: string): Promise<string[]> {
+async function getPeers(ticker: string): Promise<{ slug: string; sector: string }[]> {
   const symbol = ticker.split('.')[0];
-  // Try Screener first as it has high-quality industry categorization
   let peers = await getPeersFromScreener(ticker);
   
-  // Filter out the current company if it's in the list
-  peers = peers.filter(p => p.toLowerCase() !== symbol.toLowerCase());
+  peers = peers.filter(p => p.slug.toLowerCase() !== symbol.toLowerCase());
   
-  // If Screener fails or returns few peers, try Yahoo as a generic related-stock fallback
   if (peers.length < 3) {
     console.log("Screener found few peers, trying Yahoo Finance for related symbols...");
     const yahooPeers = await getPeersFromYahoo(ticker);
-    peers = Array.from(new Set([...peers, ...yahooPeers]))
-      .filter(p => p.toLowerCase() !== symbol.toLowerCase());
+    const yahooPeerObjs = yahooPeers
+      .filter(p => p.toLowerCase() !== symbol.toLowerCase())
+      .map(p => ({ slug: p, sector: "Related Companies" }));
+      
+    // Merge and unique
+    const merged = [...peers];
+    for (const yp of yahooPeerObjs) {
+      if (!merged.some(m => m.slug === yp.slug)) {
+        merged.push(yp);
+      }
+    }
+    peers = merged;
   }
 
   return peers.slice(0, 10);
@@ -220,10 +234,11 @@ export async function registerRoutes(
       }
 
       const peerSymbols = await getPeers(fullTicker);
-      console.log(`Found ${peerSymbols.length} total potential peers: ${peerSymbols.join(', ')}`);
+      console.log(`Found ${peerSymbols.length} total potential peers`);
       
-      const peerBetas = await Promise.all(peerSymbols.map(async (peerSymbol) => {
+      const peerBetas = await Promise.all(peerSymbols.map(async (peer) => {
           try {
+            const peerSymbol = peer.slug;
             // Normalize ticker for Yahoo Finance
             let peerFullTicker = peerSymbol;
             if (!peerSymbol.includes('.')) {
@@ -256,9 +271,9 @@ export async function registerRoutes(
             }
 
             const pBeta = calculateBetaValue(pPrices, mPrices);
-            return { ticker: peerSymbol, name: peerSymbol, beta: pBeta };
+            return { ticker: peerSymbol, name: peerSymbol, beta: pBeta, sector: peer.sector };
           } catch (e) {
-            console.error(`Error calculating beta for peer ${peerSymbol}:`, e);
+            console.error(`Error calculating beta for peer ${peer.slug}:`, e);
             return null;
           }
       }));

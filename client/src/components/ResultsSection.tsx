@@ -14,7 +14,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
 interface ResultsSectionProps {
-  data: CalculateBetaResponse;
+  data: CalculateBetaResponse & {
+    peers: Array<{
+      ticker: string;
+      name: string;
+      beta: number | null;
+      sector?: string;
+      error?: string;
+    }>;
+  };
 }
 
 export function ResultsSection({ data }: ResultsSectionProps) {
@@ -130,7 +138,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                         {peer.name}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground italic">
-                        Same Industry
+                        {(peer as any).sector || "Same Industry"}
                       </TableCell>
                       <TableCell className="text-right">
                         {peer.beta !== null ? (

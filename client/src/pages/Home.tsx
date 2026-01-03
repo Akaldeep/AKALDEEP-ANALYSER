@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format, subYears } from "date-fns";
+import { format, subYears, startOfDay } from "date-fns";
 import { CalendarIcon, Loader2, Search, TrendingUp } from "lucide-react";
 
 import { useCalculateBeta } from "@/hooks/use-beta";
@@ -38,10 +38,7 @@ import { cn } from "@/lib/utils";
 const formSchema = z.object({
   ticker: z.string().min(1, "Stock ticker is required"),
   exchange: z.enum(["NSE", "BSE"]),
-  dateRange: z.object({
-    from: z.date(),
-    to: z.date(),
-  }).required(),
+  endDate: z.date(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -50,19 +47,12 @@ export default function Home() {
   const [showResults, setShowResults] = useState(false);
   const { mutate, isPending, data, error, reset: resetMutation } = useCalculateBeta();
 
-  // Default to last 5 years as per requirements
-  const defaultTo = new Date();
-  const defaultFrom = subYears(defaultTo, 5);
-
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       ticker: "",
       exchange: "NSE",
-      dateRange: {
-        from: defaultFrom,
-        to: defaultTo,
-      },
+      endDate: new Date(),
     },
   });
 
@@ -70,16 +60,14 @@ export default function Home() {
     setShowResults(false);
     resetMutation();
     
-    // Check if range is valid
-    if (!values.dateRange.from || !values.dateRange.to) {
-      return; 
-    }
+    const end = startOfDay(values.endDate);
+    const start = subYears(end, 5);
 
     mutate({
       ticker: values.ticker.toUpperCase(),
       exchange: values.exchange,
-      startDate: values.dateRange.from.toISOString(),
-      endDate: values.dateRange.to.toISOString(),
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
     }, {
       onSuccess: () => setShowResults(true)
     });
@@ -155,13 +143,13 @@ export default function Home() {
                   )}
                 />
 
-                {/* Date Range Picker */}
+                {/* End Date Picker */}
                 <FormField
                   control={form.control}
-                  name="dateRange"
+                  name="endDate"
                   render={({ field }) => (
-                    <FormItem className="flex-[1.5] text-left space-y-1.5">
-                      <FormLabel className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Analysis Period</FormLabel>
+                    <FormItem className="flex-1 text-left space-y-1.5">
+                      <FormLabel className="text-xs font-semibold uppercase text-slate-500 tracking-wider">End Date</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
@@ -173,34 +161,29 @@ export default function Home() {
                               )}
                             >
                               <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
-                              {field.value?.from ? (
-                                field.value.to ? (
-                                  <>
-                                    {format(field.value.from, "LLL dd, y")} -{" "}
-                                    {format(field.value.to, "LLL dd, y")}
-                                  </>
-                                ) : (
-                                  format(field.value.from, "LLL dd, y")
-                                )
+                              {field.value ? (
+                                format(field.value, "PPP")
                               ) : (
-                                <span>Pick a date range</span>
+                                <span>Pick a date</span>
                               )}
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="center">
                           <Calendar
-                            mode="range"
-                            defaultMonth={field.value?.from}
+                            mode="single"
                             selected={field.value}
                             onSelect={field.onChange}
-                            numberOfMonths={2}
                             disabled={(date) =>
                               date > new Date() || date < new Date("1900-01-01")
                             }
+                            initialFocus
                           />
                         </PopoverContent>
                       </Popover>
+                      <FormDescription className="text-[10px] leading-tight">
+                        Beta will be calculated for the 5 years preceding this date.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

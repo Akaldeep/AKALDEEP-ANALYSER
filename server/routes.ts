@@ -55,40 +55,39 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
   }
 }
 
-async function getPeersFromScreener(ticker: string): Promise<string[]> {
+async function getPeersFromYahoo(ticker: string): Promise<string[]> {
   try {
-    const symbol = ticker.split('.')[0];
-    // Screener.in uses simplified slugs, often just the ticker without suffix
-    const url = `https://www.screener.in/company/${symbol}/`;
-    
-    console.log(`Fetching peers from Screener for: ${symbol}`);
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.log(`Failed to fetch Screener page for ${symbol}: ${response.status}`);
-      // Try search API as fallback
-      const searchUrl = `https://www.screener.in/api/company/search/?q=${symbol}`;
-      const searchRes = await fetch(searchUrl);
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        if (searchData && searchData.length > 0) {
-          const firstSlug = searchData[0].url.split('/')[2];
-          console.log(`Found fallback slug: ${firstSlug}`);
-          const res2 = await fetch(`https://www.screener.in/company/${firstSlug}/`);
-          if (res2.ok) return parsePeers(await res2.text());
-        }
-      }
-      return [];
+    const quote = await yahooFinance.quote(ticker);
+    if (!quote || !quote.symbol) return [];
+
+    // Yahoo Finance recommendations often contain related companies
+    const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
+    if (recommendations && recommendations.recommendedSymbols) {
+      return recommendations.recommendedSymbols
+        .map(r => r.symbol)
+        .filter(s => s !== ticker)
+        .slice(0, 10);
     }
-
-    const text = await response.text();
-    const peers = parsePeers(text);
-    console.log(`Found ${peers.length} peers for ${symbol}`);
-    return peers;
-
+    return [];
   } catch (error) {
-    console.error("Error fetching peers:", error);
+    console.error("Error fetching peers from Yahoo:", error);
     return [];
   }
+}
+
+async function getPeers(ticker: string): Promise<string[]> {
+  // Try Screener first
+  let peers = await getPeersFromScreener(ticker);
+  
+  // If Screener fails or returns few peers, try Yahoo
+  if (peers.length < 3) {
+    console.log("Screener found few peers, trying Yahoo Finance...");
+    const yahooPeers = await getPeersFromYahoo(ticker);
+    // Merge and unique
+    peers = Array.from(new Set([...peers, ...yahooPeers]));
+  }
+
+  return peers.slice(0, 10);
 }
 
 function parsePeers(html: string): string[] {
@@ -186,12 +185,17 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Insufficient data points to calculate beta" });
       }
 
-      const peerSymbols = await getPeersFromScreener(fullTicker);
-      console.log(`Found ${peerSymbols.length} potential peers from Screener: ${peerSymbols.join(', ')}`);
+      const peerSymbols = await getPeers(fullTicker);
+      console.log(`Found ${peerSymbols.length} total potential peers: ${peerSymbols.join(', ')}`);
       
       const peerBetas = await Promise.all(peerSymbols.map(async (peerSymbol) => {
           try {
-            const peerFullTicker = `${peerSymbol}${suffix}`;
+            // Normalize ticker for Yahoo Finance
+            let peerFullTicker = peerSymbol;
+            if (!peerSymbol.includes('.')) {
+              peerFullTicker = `${peerSymbol}${suffix}`;
+            }
+            
             console.log(`Processing peer: ${peerFullTicker}`);
             const peerData = await fetchHistoricalData(peerFullTicker, startDate, endDate);
             

@@ -3,10 +3,12 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
 import * as cheerio from 'cheerio';
 
-// Helper to calculate Beta
+const yahooFinance = new YahooFinance();
+
+// Helper to calculate Beta using return regression
 function calculateBetaValue(stockPrices: number[], marketPrices: number[]): number | null {
   if (stockPrices.length !== marketPrices.length || stockPrices.length < 2) return null;
 
@@ -21,6 +23,8 @@ function calculateBetaValue(stockPrices: number[], marketPrices: number[]): numb
   }
 
   const n = stockReturns.length;
+  if (n < 2) return null;
+
   const meanStock = stockReturns.reduce((a, b) => a + b, 0) / n;
   const meanMarket = marketReturns.reduce((a, b) => a + b, 0) / n;
 
@@ -39,9 +43,9 @@ function calculateBetaValue(stockPrices: number[], marketPrices: number[]): numb
 async function fetchHistoricalData(ticker: string, startDate: string, endDate: string) {
   try {
     const queryOptions = {
-      period1: startDate,
-      period2: endDate,
-      interval: '1d' as const // Daily returns
+      period1: new Date(startDate),
+      period2: new Date(endDate),
+      interval: '1d' as const
     };
     const result = await yahooFinance.historical(ticker, queryOptions);
     return result;
@@ -53,17 +57,11 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
 
 async function getPeersFromScreener(ticker: string): Promise<string[]> {
   try {
-    // Screener uses the symbol without extension (usually).
-    // e.g. RELIANCE.NS -> RELIANCE
     const symbol = ticker.split('.')[0];
     const url = `https://www.screener.in/company/${symbol}/consolidated/`;
     
-    // We need to fetch the HTML. Yahoo finance lib doesn't do this.
-    // We'll use the native fetch if available (Node 18+) or axios if installed.
-    // I'll rely on global fetch which is available in Node 20.
     const response = await fetch(url);
     if (!response.ok) {
-       // Try standalone URL if consolidated fails
        const url2 = `https://www.screener.in/company/${symbol}/`;
        const response2 = await fetch(url2);
        if (!response2.ok) return [];
@@ -82,28 +80,23 @@ async function getPeersFromScreener(ticker: string): Promise<string[]> {
 function parsePeers(html: string): string[] {
     const $ = cheerio.load(html);
     const peers: string[] = [];
-    // Screener Peer comparison table
-    // Usually in a section with id 'peers' or class 'peer-table'
-    // Looking for links to other companies
     
-    // Specific selector for Screener's peer table
-    $('#peers-table-placeholder .data-table tbody tr').each((_, el) => {
+    $('.data-table tbody tr').each((_, el) => {
         const anchor = $(el).find('td a[href^="/company/"]');
         if (anchor.length) {
             const href = anchor.attr('href');
             if (href) {
-                // href is like /company/TCS/
                 const parts = href.split('/');
-                if (parts.length >= 3) {
-                    peers.push(parts[2]);
+                const symbol = parts[2];
+                if (symbol && !peers.includes(symbol)) {
+                    peers.push(symbol);
                 }
             }
         }
     });
 
-    return peers.slice(0, 5); // Limit to 5 peers
+    return peers.slice(0, 5);
 }
-
 
 export async function registerRoutes(
   httpServer: Server,
@@ -114,33 +107,31 @@ export async function registerRoutes(
     try {
       const { ticker, exchange, startDate, endDate } = api.beta.calculate.input.parse(req.body);
 
-      // Determine Market Index and Suffix
       let marketTicker = "";
       let suffix = "";
       if (exchange === "NSE") {
-        marketTicker = "^NSEI"; // NIFTY 50
+        marketTicker = "^NSEI"; 
         suffix = ".NS";
       } else {
-        marketTicker = "^BSESN"; // SENSEX
+        marketTicker = "^BSESN"; 
         suffix = ".BO";
       }
 
       const fullTicker = ticker.endsWith(suffix) ? ticker : `${ticker}${suffix}`;
 
-      // 1. Fetch Market Data
-      const marketData = await fetchHistoricalData(marketTicker, startDate, endDate);
+      const [marketData, stockData] = await Promise.all([
+        fetchHistoricalData(marketTicker, startDate, endDate),
+        fetchHistoricalData(fullTicker, startDate, endDate)
+      ]);
+
       if (!marketData || marketData.length === 0) {
         return res.status(500).json({ message: "Failed to fetch market index data" });
       }
 
-      // 2. Fetch Stock Data
-      const stockData = await fetchHistoricalData(fullTicker, startDate, endDate);
       if (!stockData || stockData.length === 0) {
         return res.status(404).json({ message: `Failed to fetch data for ${fullTicker}. Check ticker or date range.` });
       }
 
-      // Sync Dates (Yahoo Finance might return different sets of dates due to holidays)
-      // We need aligned arrays.
       const dateMap = new Map<string, number>();
       marketData.forEach(d => {
         if (d.close) dateMap.set(d.date.toISOString().split('T')[0], d.close);
@@ -158,25 +149,19 @@ export async function registerRoutes(
         }
       });
 
-      // 3. Calculate Beta for Stock
       const beta = calculateBetaValue(alignedStockPrices, alignedMarketPrices);
       if (beta === null) {
         return res.status(400).json({ message: "Insufficient data points to calculate beta" });
       }
 
-      // 4. Identify Peers
       const peerSymbols = await getPeersFromScreener(fullTicker);
       
-      const peerBetas = [];
-
-      // 5. Calculate Beta for Peers
-      for (const peerSymbol of peerSymbols) {
-          const peerFullTicker = `${peerSymbol}${suffix}`; // Assume peers are on same exchange
+      const peerBetas = await Promise.all(peerSymbols.map(async (peerSymbol) => {
+          const peerFullTicker = `${peerSymbol}${suffix}`;
           const peerData = await fetchHistoricalData(peerFullTicker, startDate, endDate);
           
           if (!peerData) {
-              peerBetas.push({ ticker: peerSymbol, name: peerSymbol, beta: null, error: "Failed to fetch data" });
-              continue;
+              return { ticker: peerSymbol, name: peerSymbol, beta: null, error: "Failed to fetch data" };
           }
 
           const pPrices: number[] = [];
@@ -192,10 +177,9 @@ export async function registerRoutes(
           });
 
           const pBeta = calculateBetaValue(pPrices, mPrices);
-          peerBetas.push({ ticker: peerSymbol, name: peerSymbol, beta: pBeta });
-      }
+          return { ticker: peerSymbol, name: peerSymbol, beta: pBeta };
+      }));
 
-      // Save search to DB (fire and forget or await)
       await storage.createSearch({
           ticker: fullTicker,
           exchange,

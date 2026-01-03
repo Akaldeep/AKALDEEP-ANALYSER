@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, subYears, startOfDay } from "date-fns";
-import { CalendarIcon, Loader2, Search, TrendingUp } from "lucide-react";
+import { CalendarIcon, Loader2, Search, TrendingUp, Lightbulb } from "lucide-react";
 
 import { useCalculateBeta } from "@/hooks/use-beta";
 import { ResultsSection } from "@/components/ResultsSection";
@@ -33,6 +33,64 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
+
+const financeFacts = [
+  "Beta measures a stock's volatility relative to the overall market.",
+  "A beta of 1.0 means the stock moves exactly with the market.",
+  "High-beta stocks (beta > 1.0) tend to be more volatile but offer higher potential returns.",
+  "Low-beta stocks (beta < 1.0) are considered less risky during market downturns.",
+  "The concept of Beta is a key component of the Capital Asset Pricing Model (CAPM).",
+  "NIFTY 50 is the benchmark index for the National Stock Exchange (NSE) of India.",
+  "SENSEX is the benchmark index for the Bombay Stock Exchange (BSE).",
+  "A negative beta means the stock moves in the opposite direction of the market.",
+  "Utility stocks often have low betas because their earnings are stable.",
+  "Tech stocks often have high betas due to their high growth potential and sensitivity to market sentiment."
+];
+
+function FinanceFactCarousel() {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndex((prev) => (prev + 1) % financeFacts.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center p-8 bg-primary/5 rounded-2xl border border-primary/10 max-w-lg mx-auto mt-12">
+      <div className="flex items-center gap-2 mb-4 text-primary">
+        <Lightbulb className="w-5 h-5" />
+        <span className="text-sm font-semibold uppercase tracking-wider">Did you know?</span>
+      </div>
+      <div className="h-24 flex items-center text-center">
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={index}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="text-lg text-slate-700 font-medium leading-relaxed"
+          >
+            {financeFacts[index]}
+          </motion.p>
+        </AnimatePresence>
+      </div>
+      <div className="flex gap-1 mt-6">
+        {financeFacts.map((_, i) => (
+          <div
+            key={i}
+            className={cn(
+              "w-1.5 h-1.5 rounded-full transition-all duration-300",
+              i === index ? "bg-primary w-4" : "bg-primary/20"
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Schema for the form
 const formSchema = z.object({
@@ -216,6 +274,10 @@ export default function Home() {
 
       {/* Content Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {isPending && (
+          <FinanceFactCarousel />
+        )}
+
         {error && (
           <div className="max-w-2xl mx-auto mb-10 text-center p-6 bg-red-50 border border-red-100 rounded-xl text-red-600">
             <h3 className="font-semibold mb-2">Calculation Error</h3>

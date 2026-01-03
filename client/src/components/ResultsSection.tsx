@@ -62,7 +62,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
             <CardContent>
               <div className="flex items-baseline space-x-4">
                 <span className={`text-6xl font-bold font-mono-numbers tracking-tight ${mainBetaStyle.color}`}>
-                  {data.beta.toFixed(2)}
+                  {data.beta.toFixed(3)}
                 </span>
                 <div className="flex flex-col">
                   <span className="text-2xl font-bold text-foreground">{data.ticker}</span>
@@ -98,7 +98,6 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 <span className="text-sm text-muted-foreground">Risk Profile</span>
                 <span className="font-semibold flex items-center gap-2">
                   {data.beta > 1.2 ? "Aggressive" : data.beta < 0.8 ? "Defensive" : "Market Neutral"}
-                  {mainBetaStyle.icon}
                 </span>
               </div>
             </CardContent>
@@ -136,7 +135,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                       <TableCell className="text-right">
                         {peer.beta !== null ? (
                           <span className={`font-mono-numbers font-bold ${style.color}`}>
-                            {peer.beta.toFixed(2)}
+                            {peer.beta.toFixed(3)}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">-</span>

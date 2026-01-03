@@ -61,14 +61,30 @@ async function getPeersFromScreener(ticker: string): Promise<string[]> {
     const url = `https://www.screener.in/company/${symbol}/consolidated/`;
     
     const response = await fetch(url);
+    let text = "";
     if (!response.ok) {
        const url2 = `https://www.screener.in/company/${symbol}/`;
        const response2 = await fetch(url2);
-       if (!response2.ok) return [];
-       const text = await response2.text();
-       return parsePeers(text);
+       if (!response2.ok) {
+         // Fallback search if exact page fails
+         const searchUrl = `https://www.screener.in/api/company/search/?q=${symbol}`;
+         const searchRes = await fetch(searchUrl);
+         if (searchRes.ok) {
+           const searchData = await searchRes.json();
+           if (searchData && searchData.length > 0) {
+             const firstSymbol = searchData[0].url.split('/')[2];
+             const res3 = await fetch(`https://www.screener.in/company/${firstSymbol}/`);
+             if (res3.ok) text = await res3.text();
+           }
+         }
+       } else {
+         text = await response2.text();
+       }
+    } else {
+      text = await response.text();
     }
-    const text = await response.text();
+
+    if (!text) return [];
     return parsePeers(text);
 
   } catch (error) {
@@ -81,7 +97,9 @@ function parsePeers(html: string): string[] {
     const $ = cheerio.load(html);
     const peers: string[] = [];
     
-    $('.data-table tbody tr').each((_, el) => {
+    // Screener uses a peer comparison table with class 'data-table'
+    // It's usually inside a section with id 'peers'
+    $('#peers .data-table tbody tr').each((_, el) => {
         const anchor = $(el).find('td a[href^="/company/"]');
         if (anchor.length) {
             const href = anchor.attr('href');
@@ -95,7 +113,24 @@ function parsePeers(html: string): string[] {
         }
     });
 
-    return peers.slice(0, 5);
+    // If specific peers section fails, look for any company links in data tables
+    if (peers.length === 0) {
+      $('.data-table tbody tr').each((_, el) => {
+          const anchor = $(el).find('td a[href^="/company/"]');
+          if (anchor.length) {
+              const href = anchor.attr('href');
+              if (href) {
+                  const parts = href.split('/');
+                  const symbol = parts[2];
+                  if (symbol && !peers.includes(symbol)) {
+                      peers.push(symbol);
+                  }
+              }
+          }
+      });
+    }
+
+    return peers.slice(0, 7); // Increased to 7 for better coverage
 }
 
 export async function registerRoutes(

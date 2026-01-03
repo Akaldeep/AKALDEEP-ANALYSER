@@ -58,34 +58,32 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
 async function getPeersFromScreener(ticker: string): Promise<string[]> {
   try {
     const symbol = ticker.split('.')[0];
-    const url = `https://www.screener.in/company/${symbol}/consolidated/`;
+    // Screener.in uses simplified slugs, often just the ticker without suffix
+    const url = `https://www.screener.in/company/${symbol}/`;
     
+    console.log(`Fetching peers from Screener for: ${symbol}`);
     const response = await fetch(url);
-    let text = "";
     if (!response.ok) {
-       const url2 = `https://www.screener.in/company/${symbol}/`;
-       const response2 = await fetch(url2);
-       if (!response2.ok) {
-         // Fallback search if exact page fails
-         const searchUrl = `https://www.screener.in/api/company/search/?q=${symbol}`;
-         const searchRes = await fetch(searchUrl);
-         if (searchRes.ok) {
-           const searchData = await searchRes.json();
-           if (searchData && searchData.length > 0) {
-             const firstSymbol = searchData[0].url.split('/')[2];
-             const res3 = await fetch(`https://www.screener.in/company/${firstSymbol}/`);
-             if (res3.ok) text = await res3.text();
-           }
-         }
-       } else {
-         text = await response2.text();
-       }
-    } else {
-      text = await response.text();
+      console.log(`Failed to fetch Screener page for ${symbol}: ${response.status}`);
+      // Try search API as fallback
+      const searchUrl = `https://www.screener.in/api/company/search/?q=${symbol}`;
+      const searchRes = await fetch(searchUrl);
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        if (searchData && searchData.length > 0) {
+          const firstSlug = searchData[0].url.split('/')[2];
+          console.log(`Found fallback slug: ${firstSlug}`);
+          const res2 = await fetch(`https://www.screener.in/company/${firstSlug}/`);
+          if (res2.ok) return parsePeers(await res2.text());
+        }
+      }
+      return [];
     }
 
-    if (!text) return [];
-    return parsePeers(text);
+    const text = await response.text();
+    const peers = parsePeers(text);
+    console.log(`Found ${peers.length} peers for ${symbol}`);
+    return peers;
 
   } catch (error) {
     console.error("Error fetching peers:", error);
@@ -97,40 +95,39 @@ function parsePeers(html: string): string[] {
     const $ = cheerio.load(html);
     const peers: string[] = [];
     
-    // Screener uses a peer comparison table with class 'data-table'
-    // It's usually inside a section with id 'peers'
+    // The peer comparison table is typically in a section with id "peers"
+    // We look for links to other companies in that table
     $('#peers .data-table tbody tr').each((_, el) => {
-        const anchor = $(el).find('td a[href^="/company/"]');
+        const anchor = $(el).find('td.text-left a[href^="/company/"]');
         if (anchor.length) {
             const href = anchor.attr('href');
             if (href) {
-                const parts = href.split('/');
-                const symbol = parts[2];
-                if (symbol && !peers.includes(symbol)) {
-                    peers.push(symbol);
+                const slug = href.split('/')[2];
+                // Avoid adding the current company itself
+                if (slug && !peers.includes(slug)) {
+                    peers.push(slug);
                 }
             }
         }
     });
 
-    // If specific peers section fails, look for any company links in data tables
+    // Fallback: look for any company links in data-tables if "peers" id not found
     if (peers.length === 0) {
       $('.data-table tbody tr').each((_, el) => {
           const anchor = $(el).find('td a[href^="/company/"]');
           if (anchor.length) {
               const href = anchor.attr('href');
               if (href) {
-                  const parts = href.split('/');
-                  const symbol = parts[2];
-                  if (symbol && !peers.includes(symbol)) {
-                      peers.push(symbol);
+                  const slug = href.split('/')[2];
+                  if (slug && !peers.includes(slug)) {
+                      peers.push(slug);
                   }
               }
           }
       });
     }
 
-    return peers.slice(0, 7); // Increased to 7 for better coverage
+    return peers.slice(0, 10);
 }
 
 export async function registerRoutes(
@@ -190,30 +187,46 @@ export async function registerRoutes(
       }
 
       const peerSymbols = await getPeersFromScreener(fullTicker);
+      console.log(`Found ${peerSymbols.length} potential peers from Screener: ${peerSymbols.join(', ')}`);
       
       const peerBetas = await Promise.all(peerSymbols.map(async (peerSymbol) => {
-          const peerFullTicker = `${peerSymbol}${suffix}`;
-          const peerData = await fetchHistoricalData(peerFullTicker, startDate, endDate);
-          
-          if (!peerData) {
-              return { ticker: peerSymbol, name: peerSymbol, beta: null, error: "Failed to fetch data" };
-          }
-
-          const pPrices: number[] = [];
-          const mPrices: number[] = [];
-
-          peerData.forEach(d => {
-            const dateStr = d.date.toISOString().split('T')[0];
-            const marketPrice = dateMap.get(dateStr);
-            if (marketPrice && d.close) {
-              pPrices.push(d.close);
-              mPrices.push(marketPrice);
+          try {
+            const peerFullTicker = `${peerSymbol}${suffix}`;
+            console.log(`Processing peer: ${peerFullTicker}`);
+            const peerData = await fetchHistoricalData(peerFullTicker, startDate, endDate);
+            
+            if (!peerData || peerData.length < 2) {
+                console.log(`No data for peer: ${peerFullTicker}`);
+                return null;
             }
-          });
 
-          const pBeta = calculateBetaValue(pPrices, mPrices);
-          return { ticker: peerSymbol, name: peerSymbol, beta: pBeta };
+            const pPrices: number[] = [];
+            const mPrices: number[] = [];
+
+            peerData.forEach(d => {
+              const dateStr = d.date.toISOString().split('T')[0];
+              const marketPrice = dateMap.get(dateStr);
+              if (marketPrice && d.close) {
+                pPrices.push(d.close);
+                mPrices.push(marketPrice);
+              }
+            });
+
+            if (pPrices.length < 2) {
+              console.log(`Insufficient aligned data for peer: ${peerFullTicker}`);
+              return null;
+            }
+
+            const pBeta = calculateBetaValue(pPrices, mPrices);
+            return { ticker: peerSymbol, name: peerSymbol, beta: pBeta };
+          } catch (e) {
+            console.error(`Error calculating beta for peer ${peerSymbol}:`, e);
+            return null;
+          }
       }));
+
+      const finalPeers = peerBetas.filter((p): p is any => p !== null);
+      console.log(`Returning ${finalPeers.length} valid peer results`);
 
       await storage.createSearch({
           ticker: fullTicker,
@@ -221,14 +234,14 @@ export async function registerRoutes(
           startDate,
           endDate,
           beta,
-          peers: peerBetas
+          peers: finalPeers
       });
 
       const response = {
           ticker: fullTicker,
-          marketIndex: marketTicker === "^NSEI" ? "NIFTY 50" : "SENSEX",
+          marketIndex: marketTicker === "^NSEI" ? "NIFTY 50" : "BSE SENSEX",
           beta,
-          peers: peerBetas
+          peers: finalPeers
       };
 
       res.json(response);

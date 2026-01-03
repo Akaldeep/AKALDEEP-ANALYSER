@@ -55,6 +55,34 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
   }
 }
 
+async function getPeersFromScreener(ticker: string): Promise<string[]> {
+  try {
+    const symbol = ticker.split('.')[0];
+    const url = `https://www.screener.in/company/${symbol}/`;
+    
+    console.log(`Fetching peers from Screener for: ${symbol}`);
+    const response = await fetch(url);
+    if (!response.ok) {
+      const searchUrl = `https://www.screener.in/api/company/search/?q=${symbol}`;
+      const searchRes = await fetch(searchUrl);
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        if (searchData && searchData.length > 0) {
+          const firstSlug = searchData[0].url.split('/')[2];
+          const res2 = await fetch(`https://www.screener.in/company/${firstSlug}/`);
+          if (res2.ok) return parsePeers(await res2.text());
+        }
+      }
+      return [];
+    }
+
+    return parsePeers(await response.text());
+  } catch (error) {
+    console.error("Error fetching peers from Screener:", error);
+    return [];
+  }
+}
+
 async function getPeersFromYahoo(ticker: string): Promise<string[]> {
   try {
     const quote = await yahooFinance.quote(ticker);

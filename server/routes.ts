@@ -105,14 +105,25 @@ async function getPeersFromYahoo(ticker: string): Promise<string[]> {
 
 function parseSectorHierarchy($: any): string {
     const hierarchy: string[] = [];
-    $('.company-links a').each((_i: any, el: any) => {
+    // Screener.in's industry classification is typically in a p tag with specific text
+    // Example: "Sector: Information Technology | Industry: IT - Software"
+    // Or in breadcrumbs
+    $('.company-links a, .breadcrumb-item a').each((_i: any, el: any) => {
         const text = $(el).text().trim();
         if (text && !hierarchy.includes(text)) {
             hierarchy.push(text);
         }
     });
-    // According to the user screenshot, the breadcrumbs are the source of truth for industry hierarchy
-    return hierarchy.join(' > ') || 'Information Technology';
+
+    if (hierarchy.length === 0) {
+        // Fallback: look for "Sector" or "Industry" text in the page
+        const sectorText = $('p:contains("Sector")').text() || $('p:contains("Industry")').text();
+        if (sectorText) {
+            return sectorText.replace(/Sector:|Industry:/g, '').replace(/\|/g, '>').trim();
+        }
+    }
+
+    return hierarchy.join(' > ') || 'Industry';
 }
 
 function parsePeers(html: string): { slug: string; sector: string; marketCap: number }[] {
@@ -120,51 +131,33 @@ function parsePeers(html: string): { slug: string; sector: string; marketCap: nu
     const peers: { slug: string; sector: string; marketCap: number }[] = [];
     const sector = parseSectorHierarchy($);
     
-    // Primary: Peer comparison section by ID
-    let peerRows = $('#peers .data-table tbody tr');
-    
-    // Fallback 1: Any data-table under a Peer Comparison heading
-    if (peerRows.length === 0) {
-        const heading = $('h2, h3').filter((_i: any, el: any) => $(el).text().includes('Peer Comparison'));
-        if (heading.length) {
-            peerRows = heading.nextAll('.data-table, .responsive-holder').find('table tbody tr');
-        }
-    }
+    // Simplest approach: Look for any table rows with company links
+    // The "Peer Comparison" table is usually the only one with these types of links
+    const peerTable = $('#peers table, .peer-comparison table, .data-table').first();
+    const rows = peerTable.find('tbody tr');
 
-    // Fallback 2: Any table containing "S.No." and "Name" which looks like a peer table
-    if (peerRows.length === 0) {
-        $('table').each((_i: any, table: any) => {
-            const headers = $(table).find('th').text();
-            if (headers.includes('S.No.') && headers.includes('Name')) {
-                peerRows = $(table).find('tbody tr');
-                return false;
-            }
-        });
-    }
-
-    peerRows.each((_i: any, el: any) => {
-        const anchor = $(el).find('td a[href^="/company/"]');
+    rows.each((_i: any, el: any) => {
+        const cells = $(el).find('td');
+        const anchor = $(el).find('a[href^="/company/"]');
+        
         if (anchor.length) {
             const href = anchor.attr('href');
-            // Extract Market Cap - usually the column after P/E or specifically labeled
-            // On Screener, it's often the column with "Mar Cap" in header
-            // For simplicity, we'll try to find the 5th column (standard for Screener default)
-            // or better yet, look for numeric values that could be market cap
-            const columns = $(el).find('td');
-            // Market Cap is usually the 5th column (index 4) in Screener's default peer table
-            const mCapText = $(columns[4]).text().replace(/,/g, '').trim();
-            const mCap = parseFloat(mCapText) || 0;
+            const slug = href?.split('/')[2];
+            
+            // Market Cap is usually in a column with "Mar Cap" header
+            // Typically index 4 or 5. Let's look for the largest number in the row
+            let mCap = 0;
+            cells.each((_j: any, td: any) => {
+                const val = parseFloat($(td).text().replace(/,/g, ''));
+                if (!isNaN(val) && val > mCap) mCap = val;
+            });
 
-            if (href) {
-                const slug = href.split('/')[2];
-                if (slug && !peers.some(p => p.slug === slug)) {
-                    peers.push({ slug, sector, marketCap: mCap });
-                }
+            if (slug && !peers.some(p => p.slug === slug)) {
+                peers.push({ slug, sector, marketCap: mCap });
             }
         }
     });
 
-    // Sort by market cap descending and take top 5
     return peers
         .sort((a, b) => b.marketCap - a.marketCap)
         .slice(0, 5);

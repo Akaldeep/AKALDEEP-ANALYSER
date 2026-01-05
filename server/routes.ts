@@ -57,11 +57,17 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
 
 async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number }[]> {
   try {
-    const quote = await yahooFinance.quote(ticker);
+    const quote = await yahooFinance.quote(ticker) as any;
     if (!quote || !quote.symbol) return [];
 
-    const targetSector = quote.sector;
-    const targetIndustry = quote.industry;
+    // For Indian stocks, assetProfile is often missing in basic quote
+    // Let's use a more robust way to get industry/sector
+    const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
+    
+    const targetSector = summary?.assetProfile?.sector;
+    const targetIndustry = summary?.assetProfile?.industry;
+
+    console.log(`Target: ${ticker} | Sector: ${targetSector} | Industry: ${targetIndustry}`);
 
     // Fetch recommendations
     const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
@@ -69,33 +75,37 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
       return [];
     }
 
-    // Fetch quotes for all recommended symbols to filter by industry/sector
+    // Fetch summaries for all recommended symbols to filter by industry/sector
     const recSymbols = recommendations.recommendedSymbols.map(r => r.symbol);
-    const recQuotes = await Promise.all(
-      recSymbols.map(s => yahooFinance.quote(s).catch(() => null))
+    const recSummaries = await Promise.all(
+      recSymbols.map(s => yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
     );
 
-    const validPeers = recQuotes
-      .filter((q): q is any => q !== null && q.symbol !== ticker)
-      .map(q => ({
-        slug: q.symbol,
-        name: q.shortName || q.longName || q.symbol,
-        sector: q.sector,
-        industry: q.industry,
-        marketCap: q.marketCap || 0
-      }));
+    const validPeers = recSummaries
+      .map((s, index) => {
+        if (!s) return null;
+        return {
+          slug: recSymbols[index],
+          sector: s.assetProfile?.sector,
+          industry: s.assetProfile?.industry,
+          marketCap: s.summaryDetail?.marketCap || 0
+        };
+      })
+      .filter((p): p is any => p !== null && p.slug !== ticker);
 
     // Filter 1: Exact industry match
-    let filtered = validPeers.filter(p => p.industry === targetIndustry);
+    let filtered = validPeers.filter(p => p.industry && p.industry === targetIndustry);
 
     // Filter 2: Fallback to sector match if no industry matches
     if (filtered.length === 0) {
-      filtered = validPeers.filter(p => p.sector === targetSector);
+      filtered = validPeers.filter(p => p.sector && p.sector === targetSector);
     }
+
+    console.log(`Found ${filtered.length} matched peers after filtering`);
 
     return filtered.slice(0, 5).map(p => ({
       slug: p.slug,
-      sector: `${p.sector} > ${p.industry}`,
+      sector: `${p.sector || 'Unknown'} > ${p.industry || 'Unknown'}`,
       marketCap: p.marketCap
     }));
   } catch (error) {

@@ -54,7 +54,7 @@ function FinanceFactCarousel() {
   useEffect(() => {
     const timer = setInterval(() => {
       setIndex((prev) => (prev + 1) % financeFacts.length);
-    }, 5000);
+    }, 3000);
     return () => clearInterval(timer);
   }, []);
 

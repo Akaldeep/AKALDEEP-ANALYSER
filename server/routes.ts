@@ -121,7 +121,10 @@ function parsePeers(html: string): { slug: string; sector: string }[] {
     const peers: { slug: string; sector: string }[] = [];
     const sector = parseSectorHierarchy($);
     
-    $('#peers .data-table tbody tr').each((_i: any, el: any) => {
+    // We target the peers table specifically. Screener's table rows usually 
+    // represent companies in the same sub-sector/industry.
+    const peerTable = $('#peers .data-table tbody tr');
+    peerTable.each((_i: any, el: any) => {
         const anchor = $(el).find('td.text-left a[href^="/company/"]');
         if (anchor.length) {
             const href = anchor.attr('href');

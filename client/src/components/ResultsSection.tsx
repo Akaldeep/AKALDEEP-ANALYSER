@@ -100,9 +100,8 @@ export function ResultsSection({ data }: ResultsSectionProps) {
               </div>
               
               <div className="mt-6 p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground leading-relaxed">
-                Beta measures systematic risk. A value of <span className="font-bold text-foreground">{data.beta.toFixed(3)}</span> means this stock is 
-                <span className="font-bold text-foreground"> {Math.abs((data.beta - 1) * 100).toFixed(1)}% </span>
-                {data.beta > 1 ? "more volatile" : "less volatile"} than the {data.marketIndex}.
+                <span className="font-semibold text-foreground">Interpretation:</span> A beta of <span className="font-bold text-foreground">{data.beta.toFixed(3)}</span> means this stock is expected to move {data.beta > 1 ? "more" : "less"} than the market. 
+                For every 1% change in the <span className="font-bold text-foreground">{data.marketIndex}</span>, this stock is expected to change by approximately <span className="font-bold text-foreground">{data.beta.toFixed(3)}%</span>.
               </div>
             </CardContent>
           </Card>

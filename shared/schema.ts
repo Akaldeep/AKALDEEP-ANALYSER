@@ -9,7 +9,13 @@ export const searches = pgTable("searches", {
   startDate: text("start_date").notNull(),
   endDate: text("end_date").notNull(),
   beta: doublePrecision("beta"),
-  peers: jsonb("peers"),
+  peers: jsonb("peers").$type<{ 
+    ticker: string; 
+    name: string; 
+    beta: number | null; 
+    sector: string;
+    similarityScore?: number;
+  }[]>().notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

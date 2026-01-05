@@ -5,8 +5,34 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import YahooFinance from 'yahoo-finance2';
 import * as cheerio from 'cheerio';
+import OpenAI from "openai";
 
 const yahooFinance = new YahooFinance();
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
+
+// Helper to compute cosine similarity between two vectors
+function cosineSimilarity(vecA: number[], vecB: number[]): number {
+  let dotProduct = 0;
+  let mA = 0;
+  let mB = 0;
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    mA += vecA[i] * vecA[i];
+    mB += vecB[i] * vecB[i];
+  }
+  return dotProduct / (Math.sqrt(mA) * Math.sqrt(mB));
+}
+
+async function getEmbedding(text: string): Promise<number[]> {
+  const response = await openai.embeddings.create({
+    model: "text-embedding-3-small",
+    input: text,
+  });
+  return response.data[0].embedding;
+}
 
 // Helper to calculate Beta using return regression
 function calculateBetaValue(stockPrices: number[], marketPrices: number[]): number | null {
@@ -55,19 +81,15 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
   }
 }
 
-async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number }[]> {
+async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number; similarityScore?: number }[]> {
   try {
-    const quote = await yahooFinance.quote(ticker) as any;
-    if (!quote || !quote.symbol) return [];
-
-    // For Indian stocks, assetProfile is often missing in basic quote
-    // Let's use a more robust way to get industry/sector
     const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
-    
-    const targetSector = summary?.assetProfile?.sector;
-    const targetIndustry = summary?.assetProfile?.industry;
+    if (!summary) return [];
 
-    console.log(`Target: ${ticker} | Sector: ${targetSector} | Industry: ${targetIndustry}`);
+    const baseDescription = summary.assetProfile?.longBusinessSummary;
+    if (!baseDescription) return [];
+
+    const baseEmbedding = await getEmbedding(baseDescription);
 
     // Fetch recommendations
     const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
@@ -75,41 +97,52 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
       return [];
     }
 
-    // Fetch summaries for all recommended symbols to filter by industry/sector
+    // Fetch summaries for all recommended symbols to get descriptions and market cap
     const recSymbols = recommendations.recommendedSymbols.map(r => r.symbol);
     const recSummaries = await Promise.all(
       recSymbols.map(s => yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
     );
 
-    const validPeers = recSummaries
+    const peerCandidates = recSummaries
       .map((s, index) => {
-        if (!s) return null;
+        if (!s || !s.assetProfile?.longBusinessSummary) return null;
         return {
           slug: recSymbols[index],
-          sector: s.assetProfile?.sector,
-          industry: s.assetProfile?.industry,
+          description: s.assetProfile.longBusinessSummary,
+          sector: s.assetProfile.sector,
+          industry: s.assetProfile.industry,
           marketCap: s.summaryDetail?.marketCap || 0
         };
       })
       .filter((p): p is any => p !== null && p.slug !== ticker);
 
-    // Filter 1: Exact industry match
-    let filtered = validPeers.filter(p => p.industry && p.industry === targetIndustry);
+    // Compute similarity scores using embeddings
+    const scoredPeers = await Promise.all(peerCandidates.map(async (peer) => {
+      try {
+        const peerEmbedding = await getEmbedding(peer.description);
+        const similarity = cosineSimilarity(baseEmbedding, peerEmbedding);
+        return {
+          ...peer,
+          similarityScore: Math.round(similarity * 100)
+        };
+      } catch (e) {
+        console.error(`Error computing similarity for peer ${peer.slug}:`, e);
+        return null;
+      }
+    }));
 
-    // Filter 2: Fallback to sector match if no industry matches
-    if (filtered.length === 0) {
-      filtered = validPeers.filter(p => p.sector && p.sector === targetSector);
-    }
+    const finalPeers = scoredPeers
+      .filter((p): p is any => p !== null)
+      .sort((a, b) => (b.similarityScore || 0) - (a.similarityScore || 0));
 
-    console.log(`Found ${filtered.length} matched peers after filtering`);
-
-    return filtered.slice(0, 5).map(p => ({
+    return finalPeers.slice(0, 5).map(p => ({
       slug: p.slug,
       sector: `${p.sector || 'Unknown'} > ${p.industry || 'Unknown'}`,
-      marketCap: p.marketCap
+      marketCap: p.marketCap,
+      similarityScore: p.similarityScore
     }));
   } catch (error) {
-    console.error("Error fetching filtered peers from Yahoo:", error);
+    console.error("Error fetching similarity-based peers from Yahoo:", error);
     return [];
   }
 }

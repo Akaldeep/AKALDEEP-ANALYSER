@@ -20,6 +20,7 @@ interface ResultsSectionProps {
       name: string;
       beta: number | null;
       sector?: string;
+      similarityScore?: number;
       error?: string;
     }>;
   };
@@ -168,9 +169,16 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                       </TableCell>
                       <TableCell className="text-right">
                         {peer.beta !== null ? (
-                          <span className={`font-mono-numbers font-bold ${style.color}`}>
-                            {peer.beta.toFixed(3)}
-                          </span>
+                          <div className="flex flex-col items-end">
+                            <span className={`font-mono-numbers font-bold ${style.color}`}>
+                              {peer.beta.toFixed(3)}
+                            </span>
+                            {peer.similarityScore !== undefined && (
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                Similarity: {peer.similarityScore}%
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}

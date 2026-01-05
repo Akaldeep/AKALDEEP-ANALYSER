@@ -203,17 +203,43 @@ export async function registerRoutes(
 
       const fullTicker = ticker.endsWith(suffix) ? ticker : `${ticker}${suffix}`;
 
-      const [marketData, stockData] = await Promise.all([
+      const [marketDataInitial, stockDataInitial] = await Promise.all([
         fetchHistoricalData(marketTicker, startDate, endDate),
         fetchHistoricalData(fullTicker, startDate, endDate)
       ]);
 
+      let marketData = marketDataInitial;
+      let stockData = stockDataInitial;
+
       if (!marketData || marketData.length === 0) {
-        return res.status(500).json({ message: "Failed to fetch market index data" });
+        // Fallback to the other index if primary fails
+        const fallbackTicker = marketTicker === "^NSEI" ? "^BSESN" : "^NSEI";
+        console.log(`Primary index ${marketTicker} failed, trying fallback ${fallbackTicker}`);
+        const fallbackData = await fetchHistoricalData(fallbackTicker, startDate, endDate);
+        
+        if (!fallbackData || fallbackData.length === 0) {
+          return res.status(500).json({ message: "Failed to fetch market index data" });
+        }
+        
+        // Update variables to use fallback data
+        marketData = fallbackData;
+        marketTicker = fallbackTicker;
       }
 
       if (!stockData || stockData.length === 0) {
-        return res.status(404).json({ message: `Failed to fetch data for ${fullTicker}. Check ticker or date range.` });
+        // If specific exchange suffix fails, try the other one
+        const altSuffix = suffix === ".NS" ? ".BO" : ".NS";
+        const altTicker = ticker.endsWith(altSuffix) ? ticker : `${ticker}${altSuffix}`;
+        console.log(`Primary ticker ${fullTicker} failed, trying alternative ${altTicker}`);
+        const altData = await fetchHistoricalData(altTicker, startDate, endDate);
+        
+        if (!altData || altData.length === 0) {
+          return res.status(404).json({ message: `Failed to fetch data for ${fullTicker}. Check ticker or date range.` });
+        }
+        
+        // Update variables to use alternative data
+        stockData = altData;
+        suffix = altSuffix;
       }
 
       const dateMap = new Map<string, number>();

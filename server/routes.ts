@@ -105,10 +105,9 @@ async function getPeersFromYahoo(ticker: string): Promise<string[]> {
 
 function parseSectorHierarchy($: any): string {
     const hierarchy: string[] = [];
-    // Screener.in's industry classification is typically in a p tag with specific text
-    // Example: "Sector: Information Technology | Industry: IT - Software"
-    // Or in breadcrumbs
-    $('.company-links a, .breadcrumb-item a').each((_i: any, el: any) => {
+    // Target the specific icons/links shown in the user's screenshot
+    // Consumer Discretionary > Consumer Durables > Consumer Durables > Household Appliances
+    $('.company-links a, .breadcrumb-item a, .flex-row.flex-gap-8 a').each((_i: any, el: any) => {
         const text = $(el).text().trim();
         if (text && !hierarchy.includes(text)) {
             hierarchy.push(text);
@@ -116,10 +115,10 @@ function parseSectorHierarchy($: any): string {
     });
 
     if (hierarchy.length === 0) {
-        // Fallback: look for "Sector" or "Industry" text in the page
+        // Fallback for different Screener layouts
         const sectorText = $('p:contains("Sector")').text() || $('p:contains("Industry")').text();
         if (sectorText) {
-            return sectorText.replace(/Sector:|Industry:/g, '').replace(/\|/g, '>').trim();
+            return sectorText.replace(/Sector:|Industry:/g, '').replace(/\|/g, ' > ').trim();
         }
     }
 
@@ -131,9 +130,8 @@ function parsePeers(html: string): { slug: string; sector: string; marketCap: nu
     const peers: { slug: string; sector: string; marketCap: number }[] = [];
     const sector = parseSectorHierarchy($);
     
-    // Simplest approach: Look for any table rows with company links
-    // The "Peer Comparison" table is usually the only one with these types of links
-    const peerTable = $('#peers table, .peer-comparison table, .data-table').first();
+    // Improved selector to catch the peer table more reliably across different templates
+    const peerTable = $('#peers table, .peer-comparison table, .data-table, table:has(th:contains("Name"))').first();
     const rows = peerTable.find('tbody tr');
 
     rows.each((_i: any, el: any) => {
@@ -144,11 +142,13 @@ function parsePeers(html: string): { slug: string; sector: string; marketCap: nu
             const href = anchor.attr('href');
             const slug = href?.split('/')[2];
             
-            // Market Cap is usually in a column with "Mar Cap" header
-            // Typically index 4 or 5. Let's look for the largest number in the row
+            // Market Cap extraction - look for the column with market cap data
+            // Usually the 5th column or one with numeric value > 100 in many cases
             let mCap = 0;
             cells.each((_j: any, td: any) => {
-                const val = parseFloat($(td).text().replace(/,/g, ''));
+                const text = $(td).text().replace(/,/g, '').trim();
+                const val = parseFloat(text);
+                // Heuristic: market caps in India are usually large numbers in this column
                 if (!isNaN(val) && val > mCap) mCap = val;
             });
 
@@ -158,6 +158,7 @@ function parsePeers(html: string): { slug: string; sector: string; marketCap: nu
         }
     });
 
+    // Take top 5 by market cap as requested
     return peers
         .sort((a, b) => b.marketCap - a.marketCap)
         .slice(0, 5);

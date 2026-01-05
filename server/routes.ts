@@ -111,8 +111,7 @@ function parseSectorHierarchy($: any): string {
             hierarchy.push(text);
         }
     });
-    // According to the user screenshot, we should extract the hierarchy 
-    // from the breadcrumbs/company-links section
+    // According to the user screenshot, the breadcrumbs are the source of truth for industry hierarchy
     return hierarchy.join(' > ') || 'Information Technology';
 }
 
@@ -121,8 +120,8 @@ function parsePeers(html: string): { slug: string; sector: string }[] {
     const peers: { slug: string; sector: string }[] = [];
     const sector = parseSectorHierarchy($);
     
-    // We target the peers table specifically. Screener's table rows usually 
-    // represent companies in the same sub-sector/industry.
+    // We only take peers from the "Peer Comparison" table which Screener.in 
+    // strictly populates with companies in the same industry/sector.
     const peerTable = $('#peers .data-table tbody tr');
     peerTable.each((_i: any, el: any) => {
         const anchor = $(el).find('td.text-left a[href^="/company/"]');
@@ -137,49 +136,19 @@ function parsePeers(html: string): { slug: string; sector: string }[] {
         }
     });
 
-    if (peers.length > 0) return peers.slice(0, 10);
-
-    const peerHeading = $('h2:contains("Peer Comparison")');
-    if (peerHeading.length) {
-      peerHeading.nextAll('.data-table').first().find('tbody tr').each((_i: any, el: any) => {
-          const anchor = $(el).find('td.text-left a[href^="/company/"]');
-          if (anchor.length) {
-              const href = anchor.attr('href');
-              const slug = href?.split('/')[2];
-              if (slug && !peers.some(p => p.slug === slug)) {
-                  peers.push({ slug, sector });
-              }
-          }
-      });
-    }
-
     return peers.slice(0, 10);
 }
 
 async function getPeers(ticker: string): Promise<{ slug: string; sector: string }[]> {
   const symbol = ticker.split('.')[0];
+  // Strictly use Screener.in for peers to ensure they are from the same industry
   let peers = await getPeersFromScreener(ticker);
   
   peers = peers.filter(p => p.slug.toLowerCase() !== symbol.toLowerCase());
   
-  if (peers.length < 3) {
-    console.log("Screener found few peers, trying Yahoo Finance for related symbols...");
-    const yahooPeers = await getPeersFromYahoo(ticker);
-    const yahooPeerObjs = yahooPeers
-      .filter(p => p.toLowerCase() !== symbol.toLowerCase())
-      .map(p => ({ slug: p, sector: "Related Companies" }));
-      
-    // Merge and unique
-    const merged = [...peers];
-    for (const yp of yahooPeerObjs) {
-      if (!merged.some(m => m.slug === yp.slug)) {
-        merged.push(yp);
-      }
-    }
-    peers = merged;
-  }
-
-  return peers.slice(0, 10);
+  // No fallback to Yahoo recommendations as they can cross industries.
+  // We strictly stick to Screener's industry peers.
+  return peers;
 }
 
 export async function registerRoutes(

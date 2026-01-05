@@ -154,10 +154,17 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   return (
                     <TableRow key={peer.ticker} className="group hover:bg-muted/50 transition-colors">
                       <TableCell className="font-medium pl-6 text-foreground/90">
-                        {peer.name}
+                        <div className="flex flex-col">
+                          <span>{peer.name}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block md:hidden">
+                            {(peer as any).sector}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground italic">
-                        {(peer as any).sector || "Same Industry"}
+                        <div className="max-w-[250px] truncate" title={(peer as any).sector}>
+                          {(peer as any).sector || "Same Industry"}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         {peer.beta !== null ? (

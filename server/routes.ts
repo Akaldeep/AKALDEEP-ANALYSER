@@ -105,12 +105,14 @@ async function getPeersFromYahoo(ticker: string): Promise<string[]> {
 
 function parseSectorHierarchy($: any): string {
     const hierarchy: string[] = [];
-    $('.company-links a').each((_, el) => {
+    $('.company-links a').each((_i: any, el: any) => {
         const text = $(el).text().trim();
         if (text && !hierarchy.includes(text)) {
             hierarchy.push(text);
         }
     });
+    // According to the user screenshot, we should extract the hierarchy 
+    // from the breadcrumbs/company-links section
     return hierarchy.join(' > ') || 'Information Technology';
 }
 

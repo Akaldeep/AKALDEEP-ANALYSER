@@ -55,7 +55,7 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
   }
 }
 
-async function getPeersFromScreener(ticker: string): Promise<{ slug: string; sector: string }[]> {
+async function getPeersFromScreener(ticker: string): Promise<{ slug: string; sector: string; marketCap: number }[]> {
   try {
     const symbol = ticker.split('.')[0];
     const url = `https://www.screener.in/company/${symbol}/`;
@@ -115,9 +115,9 @@ function parseSectorHierarchy($: any): string {
     return hierarchy.join(' > ') || 'Information Technology';
 }
 
-function parsePeers(html: string): { slug: string; sector: string }[] {
+function parsePeers(html: string): { slug: string; sector: string; marketCap: number }[] {
     const $ = cheerio.load(html);
-    const peers: { slug: string; sector: string }[] = [];
+    const peers: { slug: string; sector: string; marketCap: number }[] = [];
     const sector = parseSectorHierarchy($);
     
     // Primary: Peer comparison section by ID
@@ -125,7 +125,7 @@ function parsePeers(html: string): { slug: string; sector: string }[] {
     
     // Fallback 1: Any data-table under a Peer Comparison heading
     if (peerRows.length === 0) {
-        const heading = $('h2, h3').filter((_, el) => $(el).text().includes('Peer Comparison'));
+        const heading = $('h2, h3').filter((_i: any, el: any) => $(el).text().includes('Peer Comparison'));
         if (heading.length) {
             peerRows = heading.nextAll('.data-table, .responsive-holder').find('table tbody tr');
         }
@@ -133,7 +133,7 @@ function parsePeers(html: string): { slug: string; sector: string }[] {
 
     // Fallback 2: Any table containing "S.No." and "Name" which looks like a peer table
     if (peerRows.length === 0) {
-        $('table').each((_, table) => {
+        $('table').each((_i: any, table: any) => {
             const headers = $(table).find('th').text();
             if (headers.includes('S.No.') && headers.includes('Name')) {
                 peerRows = $(table).find('tbody tr');
@@ -146,19 +146,31 @@ function parsePeers(html: string): { slug: string; sector: string }[] {
         const anchor = $(el).find('td a[href^="/company/"]');
         if (anchor.length) {
             const href = anchor.attr('href');
+            // Extract Market Cap - usually the column after P/E or specifically labeled
+            // On Screener, it's often the column with "Mar Cap" in header
+            // For simplicity, we'll try to find the 5th column (standard for Screener default)
+            // or better yet, look for numeric values that could be market cap
+            const columns = $(el).find('td');
+            // Market Cap is usually the 5th column (index 4) in Screener's default peer table
+            const mCapText = $(columns[4]).text().replace(/,/g, '').trim();
+            const mCap = parseFloat(mCapText) || 0;
+
             if (href) {
                 const slug = href.split('/')[2];
                 if (slug && !peers.some(p => p.slug === slug)) {
-                    peers.push({ slug, sector });
+                    peers.push({ slug, sector, marketCap: mCap });
                 }
             }
         }
     });
 
-    return peers.slice(0, 10);
+    // Sort by market cap descending and take top 5
+    return peers
+        .sort((a, b) => b.marketCap - a.marketCap)
+        .slice(0, 5);
 }
 
-async function getPeers(ticker: string): Promise<{ slug: string; sector: string }[]> {
+async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number }[]> {
   const symbol = ticker.split('.')[0];
   // Strictly use Screener.in for peers to ensure they are from the same industry
   let peers = await getPeersFromScreener(ticker);
@@ -222,9 +234,13 @@ export async function registerRoutes(
         companyName = altQuote?.longName || altQuote?.shortName || ticker;
     }
 
+      if (!marketData || marketData.length === 0) {
+        return res.status(500).json({ message: "Failed to fetch market index data" });
+      }
+
       const dateMap = new Map<string, number>();
       marketData.forEach(d => {
-        if (d.close) dateMap.set(d.date.toISOString().split('T')[0], d.close);
+        if (d && d.close) dateMap.set(d.date.toISOString().split('T')[0], d.close);
       });
 
       const alignedStockPrices: number[] = [];

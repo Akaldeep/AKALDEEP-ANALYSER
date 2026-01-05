@@ -56,27 +56,40 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
 }
 
 async function getPeersFromScreener(ticker: string): Promise<{ slug: string; sector: string; marketCap: number }[]> {
+  const symbol = ticker.split('.')[0];
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+  };
+
   try {
-    const symbol = ticker.split('.')[0];
+    // 1. Primary: Direct company page
     const url = `https://www.screener.in/company/${symbol}/`;
-    
     console.log(`Fetching peers from Screener for: ${symbol}`);
-    const response = await fetch(url);
-    if (!response.ok) {
-      const searchUrl = `https://www.screener.in/api/company/search/?q=${symbol}`;
-      const searchRes = await fetch(searchUrl);
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        if (searchData && searchData.length > 0) {
-          const firstSlug = searchData[0].url.split('/')[2];
-          const res2 = await fetch(`https://www.screener.in/company/${firstSlug}/`);
-          if (res2.ok) return parsePeers(await res2.text());
-        }
-      }
-      return [];
+    const response = await fetch(url, { headers });
+    
+    if (response.ok) {
+      const html = await response.text();
+      const peers = parsePeers(html);
+      if (peers.length > 0) return peers;
     }
 
-    return parsePeers(await response.text());
+    // 2. Fallback: Search if direct page fails or returns no peers
+    const searchUrl = `https://www.screener.in/api/company/search/?q=${symbol}`;
+    const searchRes = await fetch(searchUrl, { headers });
+    if (searchRes.ok) {
+      const searchData = await searchRes.json();
+      if (searchData && searchData.length > 0) {
+        const firstSlug = searchData[0].url.split('/')[2];
+        const res2 = await fetch(`https://www.screener.in/company/${firstSlug}/`, { headers });
+        if (res2.ok) {
+          const html = await res2.text();
+          return parsePeers(html);
+        }
+      }
+    }
+    return [];
   } catch (error) {
     console.error("Error fetching peers from Screener:", error);
     return [];

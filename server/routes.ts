@@ -34,6 +34,39 @@ async function getEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
+async function generateKeywords(text: string): Promise<string[]> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "Extract exactly 5 core business keywords from the following business summary. Return them as a comma-separated list of single words or short phrases.",
+        },
+        {
+          role: "user",
+          content: text,
+        },
+      ],
+      max_completion_tokens: 50,
+    });
+    const content = response.choices[0].message.content || "";
+    return content.split(",").map(k => k.trim().toLowerCase()).slice(0, 5);
+  } catch (error) {
+    console.error("Error generating keywords:", error);
+    return [];
+  }
+}
+
+function calculateKeywordOverlap(keywordsA: string[], keywordsB: string[]): number {
+  if (keywordsA.length === 0 || keywordsB.length === 0) return 0;
+  const setA = new Set(keywordsA);
+  const intersection = keywordsB.filter(k => setA.has(k));
+  // Jaccard-like or simple overlap percentage
+  // Since we always have 5 keywords, we can just do (intersection / 5) * 100
+  return (intersection.length / 5) * 100;
+}
+
 // Helper to calculate Beta using return regression
 function calculateBetaValue(stockPrices: number[], marketPrices: number[]): number | null {
   if (stockPrices.length !== marketPrices.length || stockPrices.length < 2) return null;
@@ -81,7 +114,7 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
   }
 }
 
-async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number; similarityScore?: number }[]> {
+async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number; similarityScore?: number; keywords?: string[] }[]> {
   try {
     const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
     if (!summary) return [];
@@ -89,7 +122,10 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
     const baseDescription = summary.assetProfile?.longBusinessSummary;
     if (!baseDescription) return [];
 
-    const baseEmbedding = await getEmbedding(baseDescription);
+    const [baseEmbedding, baseKeywords] = await Promise.all([
+      getEmbedding(baseDescription),
+      generateKeywords(baseDescription)
+    ]);
 
     // Fetch recommendations
     const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
@@ -116,14 +152,24 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
       })
       .filter((p): p is any => p !== null && p.slug !== ticker);
 
-    // Compute similarity scores using embeddings
+    // Compute similarity scores using embeddings and keywords
     const scoredPeers = await Promise.all(peerCandidates.map(async (peer) => {
       try {
-        const peerEmbedding = await getEmbedding(peer.description);
-        const similarity = cosineSimilarity(baseEmbedding, peerEmbedding);
+        const [peerEmbedding, peerKeywords] = await Promise.all([
+          getEmbedding(peer.description),
+          generateKeywords(peer.description)
+        ]);
+        
+        const embeddingSimilarity = cosineSimilarity(baseEmbedding, peerEmbedding);
+        const keywordOverlap = calculateKeywordOverlap(baseKeywords, peerKeywords);
+        
+        // Combine scores: 70% embedding, 30% keyword overlap
+        const combinedSimilarity = (embeddingSimilarity * 70) + (keywordOverlap * 0.3);
+        
         return {
           ...peer,
-          similarityScore: Math.round(similarity * 100)
+          similarityScore: Math.round(combinedSimilarity),
+          keywords: peerKeywords
         };
       } catch (e) {
         console.error(`Error computing similarity for peer ${peer.slug}:`, e);
@@ -139,7 +185,8 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
       slug: p.slug,
       sector: `${p.sector || 'Unknown'} > ${p.industry || 'Unknown'}`,
       marketCap: p.marketCap,
-      similarityScore: p.similarityScore
+      similarityScore: p.similarityScore,
+      keywords: p.keywords
     }));
   } catch (error) {
     console.error("Error fetching similarity-based peers from Yahoo:", error);

@@ -15,6 +15,7 @@ export const searches = pgTable("searches", {
     beta: number | null; 
     sector: string;
     similarityScore?: number;
+    keywords?: string[];
   }[]>().notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });

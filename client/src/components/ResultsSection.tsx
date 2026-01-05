@@ -60,53 +60,73 @@ export function ResultsSection({ data }: ResultsSectionProps) {
     >
       {/* Primary Result Card */}
       <motion.div variants={item}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="border-l-4 border-l-primary shadow-lg bg-card/50 backdrop-blur-sm">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="md:col-span-2 border-l-4 border-l-primary shadow-lg bg-card/50 backdrop-blur-sm overflow-hidden group">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Target Stock Beta
+              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex justify-between items-center">
+                Target Stock Analysis
+                <Badge variant="secondary" className="font-mono text-[10px] tracking-normal">
+                  {data.ticker}
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-baseline space-x-4">
-                <span className={`text-6xl font-bold font-mono-numbers tracking-tight ${mainBetaStyle.color}`}>
-                  {data.beta.toFixed(3)}
-                </span>
-                <div className="flex flex-col">
-                  <span className="text-2xl font-bold text-foreground">{data.ticker}</span>
-                  <Badge variant="outline" className="mt-1 w-fit">
-                    vs {data.marketIndex}
-                  </Badge>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-bold text-foreground leading-tight group-hover:text-primary transition-colors">
+                    {(data as any).name || data.ticker}
+                  </h2>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" />
+                      Beta vs {data.marketIndex}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4 bg-primary/5 p-4 rounded-xl border border-primary/10">
+                  <div className={`text-6xl font-black font-mono-numbers tracking-tighter ${mainBetaStyle.color}`}>
+                    {data.beta.toFixed(3)}
+                  </div>
+                  <div className="h-12 w-px bg-primary/10 mx-2 hidden md:block" />
+                  <div className="flex flex-col">
+                    <span className="text-xs uppercase font-bold text-muted-foreground tracking-widest">Volatility</span>
+                    <span className={`font-bold ${mainBetaStyle.color} flex items-center gap-1`}>
+                      {mainBetaStyle.icon}
+                      {data.beta > 1.2 ? "Aggressive" : data.beta < 0.8 ? "Defensive" : "Moderate"}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <p className="mt-4 text-sm text-muted-foreground">
-                Beta measures the volatility of the stock relative to the overall market.
-                A beta {data.beta > 1 ? "greater than 1.0" : "less than 1.0"} indicates that the stock is
-                {data.beta > 1 ? " more volatile " : " less volatile "} than the market index.
-              </p>
+              
+              <div className="mt-6 p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground leading-relaxed">
+                Beta measures systematic risk. A value of <span className="font-bold text-foreground">{data.beta.toFixed(3)}</span> means this stock is 
+                <span className="font-bold text-foreground"> {Math.abs((data.beta - 1) * 100).toFixed(1)}% </span>
+                {data.beta > 1 ? "more volatile" : "less volatile"} than the {data.marketIndex}.
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="shadow-lg bg-primary/5 border-primary/20">
+          <Card className="shadow-lg bg-primary/5 border-primary/20 flex flex-col justify-center">
              <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-primary/80 uppercase tracking-wider">
-                Analysis Summary
+              <CardTitle className="text-xs font-semibold text-primary/80 uppercase tracking-widest">
+                Quick Stats
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center py-2 border-b border-primary/10">
-                <span className="text-sm text-muted-foreground">Market Index Used</span>
-                <span className="font-semibold">{data.marketIndex}</span>
+                <span className="text-xs text-muted-foreground uppercase font-medium">Index</span>
+                <span className="font-bold text-sm">{data.marketIndex}</span>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-primary/10">
-                <span className="text-sm text-muted-foreground">Peer Companies Analyzed</span>
-                <span className="font-semibold">{data.peers.length}</span>
+                <span className="text-xs text-muted-foreground uppercase font-medium">Peers</span>
+                <span className="font-bold text-sm">{data.peers.length}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-primary/10">
-                <span className="text-sm text-muted-foreground">Risk Profile</span>
-                <span className="font-semibold flex items-center gap-2">
-                  {data.beta > 1.2 ? "Aggressive" : data.beta < 0.8 ? "Defensive" : "Market Neutral"}
-                </span>
+              <div className="flex justify-between items-center py-2">
+                <span className="text-xs text-muted-foreground uppercase font-medium">Profile</span>
+                <Badge className={`${mainBetaStyle.color} bg-white dark:bg-slate-900 border-current font-bold`}>
+                  {data.beta > 1.2 ? "High Risk" : data.beta < 0.8 ? "Low Risk" : "Market Risk"}
+                </Badge>
               </div>
             </CardContent>
           </Card>

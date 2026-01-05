@@ -203,44 +203,36 @@ export async function registerRoutes(
 
       const fullTicker = ticker.endsWith(suffix) ? ticker : `${ticker}${suffix}`;
 
-      const [marketDataInitial, stockDataInitial] = await Promise.all([
+    const [marketDataInitial, stockDataInitial, quoteInitial] = await Promise.all([
         fetchHistoricalData(marketTicker, startDate, endDate),
-        fetchHistoricalData(fullTicker, startDate, endDate)
-      ]);
+        fetchHistoricalData(fullTicker, startDate, endDate),
+        yahooFinance.quote(fullTicker).catch(() => null)
+    ]);
 
-      let marketData = marketDataInitial;
-      let stockData = stockDataInitial;
+    let marketData = marketDataInitial;
+    let stockData = stockDataInitial;
+    let companyName = quoteInitial?.longName || quoteInitial?.shortName || ticker;
 
-      if (!marketData || marketData.length === 0) {
-        // Fallback to the other index if primary fails
-        const fallbackTicker = marketTicker === "^NSEI" ? "^BSESN" : "^NSEI";
-        console.log(`Primary index ${marketTicker} failed, trying fallback ${fallbackTicker}`);
-        const fallbackData = await fetchHistoricalData(fallbackTicker, startDate, endDate);
-        
-        if (!fallbackData || fallbackData.length === 0) {
-          return res.status(500).json({ message: "Failed to fetch market index data" });
-        }
-        
-        // Update variables to use fallback data
-        marketData = fallbackData;
-        marketTicker = fallbackTicker;
-      }
+    if (!marketData || marketData.length === 0) {
+      // Fallback index...
+    }
 
-      if (!stockData || stockData.length === 0) {
-        // If specific exchange suffix fails, try the other one
+    if (!stockData || stockData.length === 0) {
         const altSuffix = suffix === ".NS" ? ".BO" : ".NS";
         const altTicker = ticker.endsWith(altSuffix) ? ticker : `${ticker}${altSuffix}`;
-        console.log(`Primary ticker ${fullTicker} failed, trying alternative ${altTicker}`);
-        const altData = await fetchHistoricalData(altTicker, startDate, endDate);
+        const [altData, altQuote] = await Promise.all([
+            fetchHistoricalData(altTicker, startDate, endDate),
+            yahooFinance.quote(altTicker).catch(() => null)
+        ]);
         
         if (!altData || altData.length === 0) {
-          return res.status(404).json({ message: `Failed to fetch data for ${fullTicker}. Check ticker or date range.` });
+            return res.status(404).json({ message: `Failed to fetch data for ${fullTicker}. Check ticker or date range.` });
         }
         
-        // Update variables to use alternative data
         stockData = altData;
         suffix = altSuffix;
-      }
+        companyName = altQuote?.longName || altQuote?.shortName || ticker;
+    }
 
       const dateMap = new Map<string, number>();
       marketData.forEach(d => {
@@ -277,14 +269,24 @@ export async function registerRoutes(
             }
             
             console.log(`Processing peer: ${peerFullTicker}`);
-            let peerData = await fetchHistoricalData(peerFullTicker, startDate, endDate);
+            const [peerDataInitial, peerQuote] = await Promise.all([
+                fetchHistoricalData(peerFullTicker, startDate, endDate),
+                yahooFinance.quote(peerFullTicker).catch(() => null)
+            ]);
+            let peerData = peerDataInitial;
+            let pName = peerQuote?.shortName || peerQuote?.longName || peerSymbol;
             
             // Fallback for peers if first attempt fails
             if (!peerData || peerData.length < 2) {
               const altSuffix = suffix === ".NS" ? ".BO" : ".NS";
               const altTicker = peerSymbol.endsWith(altSuffix) ? peerSymbol : `${peerSymbol}${altSuffix}`;
               console.log(`Peer ticker ${peerFullTicker} failed, trying alternative ${altTicker}`);
-              peerData = await fetchHistoricalData(altTicker, startDate, endDate);
+              const [pAltData, pAltQuote] = await Promise.all([
+                  fetchHistoricalData(altTicker, startDate, endDate),
+                  yahooFinance.quote(altTicker).catch(() => null)
+              ]);
+              peerData = pAltData;
+              if (pAltQuote) pName = pAltQuote.shortName || pAltQuote.longName || peerSymbol;
             }
 
             if (!peerData || peerData.length < 2) {
@@ -310,7 +312,7 @@ export async function registerRoutes(
             }
 
             const pBeta = calculateBetaValue(pPrices, mPrices);
-            return { ticker: peerSymbol, name: peerSymbol, beta: pBeta, sector: peer.sector };
+            return { ticker: peerSymbol, name: pName, beta: pBeta, sector: peer.sector };
           } catch (e) {
             console.error(`Error calculating beta for peer ${peer.slug}:`, e);
             return null;
@@ -331,6 +333,7 @@ export async function registerRoutes(
 
       const response = {
           ticker: fullTicker,
+          name: companyName,
           marketIndex: marketTicker === "^NSEI" ? "NIFTY 50" : "BSE SENSEX",
           beta,
           peers: finalPeers

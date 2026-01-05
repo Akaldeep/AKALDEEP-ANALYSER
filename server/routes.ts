@@ -120,11 +120,30 @@ function parsePeers(html: string): { slug: string; sector: string }[] {
     const peers: { slug: string; sector: string }[] = [];
     const sector = parseSectorHierarchy($);
     
-    // We only take peers from the "Peer Comparison" table which Screener.in 
-    // strictly populates with companies in the same industry/sector.
-    const peerTable = $('#peers .data-table tbody tr');
-    peerTable.each((_i: any, el: any) => {
-        const anchor = $(el).find('td.text-left a[href^="/company/"]');
+    // Primary: Peer comparison section by ID
+    let peerRows = $('#peers .data-table tbody tr');
+    
+    // Fallback 1: Any data-table under a Peer Comparison heading
+    if (peerRows.length === 0) {
+        const heading = $('h2, h3').filter((_, el) => $(el).text().includes('Peer Comparison'));
+        if (heading.length) {
+            peerRows = heading.nextAll('.data-table, .responsive-holder').find('table tbody tr');
+        }
+    }
+
+    // Fallback 2: Any table containing "S.No." and "Name" which looks like a peer table
+    if (peerRows.length === 0) {
+        $('table').each((_, table) => {
+            const headers = $(table).find('th').text();
+            if (headers.includes('S.No.') && headers.includes('Name')) {
+                peerRows = $(table).find('tbody tr');
+                return false;
+            }
+        });
+    }
+
+    peerRows.each((_i: any, el: any) => {
+        const anchor = $(el).find('td a[href^="/company/"]');
         if (anchor.length) {
             const href = anchor.attr('href');
             if (href) {

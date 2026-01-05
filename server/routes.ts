@@ -60,26 +60,46 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
     const quote = await yahooFinance.quote(ticker);
     if (!quote || !quote.symbol) return [];
 
-    const sector = quote.sector || "Unknown Sector";
-    const industry = quote.industry || "Unknown Industry";
+    const targetSector = quote.sector;
+    const targetIndustry = quote.industry;
 
-    // 1. Try recommendations first
+    // Fetch recommendations
     const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
-    if (recommendations && recommendations.recommendedSymbols && recommendations.recommendedSymbols.length > 0) {
-      const peers = recommendations.recommendedSymbols
-        .filter(r => r.symbol !== ticker)
-        .slice(0, 5)
-        .map(r => ({
-          slug: r.symbol,
-          sector: `${sector} > ${industry}`,
-          marketCap: 0 // We'll fetch mCap later or use 0
-        }));
-      return peers;
+    if (!recommendations || !recommendations.recommendedSymbols || recommendations.recommendedSymbols.length === 0) {
+      return [];
     }
 
-    return [];
+    // Fetch quotes for all recommended symbols to filter by industry/sector
+    const recSymbols = recommendations.recommendedSymbols.map(r => r.symbol);
+    const recQuotes = await Promise.all(
+      recSymbols.map(s => yahooFinance.quote(s).catch(() => null))
+    );
+
+    const validPeers = recQuotes
+      .filter((q): q is any => q !== null && q.symbol !== ticker)
+      .map(q => ({
+        slug: q.symbol,
+        name: q.shortName || q.longName || q.symbol,
+        sector: q.sector,
+        industry: q.industry,
+        marketCap: q.marketCap || 0
+      }));
+
+    // Filter 1: Exact industry match
+    let filtered = validPeers.filter(p => p.industry === targetIndustry);
+
+    // Filter 2: Fallback to sector match if no industry matches
+    if (filtered.length === 0) {
+      filtered = validPeers.filter(p => p.sector === targetSector);
+    }
+
+    return filtered.slice(0, 5).map(p => ({
+      slug: p.slug,
+      sector: `${p.sector} > ${p.industry}`,
+      marketCap: p.marketCap
+    }));
   } catch (error) {
-    console.error("Error fetching peers from Yahoo:", error);
+    console.error("Error fetching filtered peers from Yahoo:", error);
     return [];
   }
 }

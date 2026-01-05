@@ -277,10 +277,18 @@ export async function registerRoutes(
             }
             
             console.log(`Processing peer: ${peerFullTicker}`);
-            const peerData = await fetchHistoricalData(peerFullTicker, startDate, endDate);
+            let peerData = await fetchHistoricalData(peerFullTicker, startDate, endDate);
             
+            // Fallback for peers if first attempt fails
             if (!peerData || peerData.length < 2) {
-                console.log(`No data for peer: ${peerFullTicker}`);
+              const altSuffix = suffix === ".NS" ? ".BO" : ".NS";
+              const altTicker = peerSymbol.endsWith(altSuffix) ? peerSymbol : `${peerSymbol}${altSuffix}`;
+              console.log(`Peer ticker ${peerFullTicker} failed, trying alternative ${altTicker}`);
+              peerData = await fetchHistoricalData(altTicker, startDate, endDate);
+            }
+
+            if (!peerData || peerData.length < 2) {
+                console.log(`No data for peer: ${peerFullTicker} after fallback`);
                 return null;
             }
 

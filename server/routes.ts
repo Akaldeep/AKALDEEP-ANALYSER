@@ -55,138 +55,33 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
   }
 }
 
-async function getPeersFromScreener(ticker: string): Promise<{ slug: string; sector: string; marketCap: number }[]> {
-  const symbol = ticker.split('.')[0];
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-  };
-
-  try {
-    // 1. Primary: Direct company page
-    const url = `https://www.screener.in/company/${symbol}/`;
-    console.log(`Fetching peers from Screener for: ${symbol}`);
-    const response = await fetch(url, { headers });
-    
-    if (response.ok) {
-      const html = await response.text();
-      const peers = parsePeers(html);
-      if (peers.length > 0) return peers;
-    }
-
-    // 2. Fallback: Search if direct page fails or returns no peers
-    const searchUrl = `https://www.screener.in/api/company/search/?q=${symbol}`;
-    const searchRes = await fetch(searchUrl, { headers });
-    if (searchRes.ok) {
-      const searchData = await searchRes.json();
-      if (searchData && searchData.length > 0) {
-        const firstSlug = searchData[0].url.split('/')[2];
-        const res2 = await fetch(`https://www.screener.in/company/${firstSlug}/`, { headers });
-        if (res2.ok) {
-          const html = await res2.text();
-          return parsePeers(html);
-        }
-      }
-    }
-    return [];
-  } catch (error) {
-    console.error("Error fetching peers from Screener:", error);
-    return [];
-  }
-}
-
-async function getPeersFromYahoo(ticker: string): Promise<string[]> {
+async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number }[]> {
   try {
     const quote = await yahooFinance.quote(ticker);
     if (!quote || !quote.symbol) return [];
 
-    // Yahoo Finance recommendations often contain related companies
+    const sector = quote.sector || "Unknown Sector";
+    const industry = quote.industry || "Unknown Industry";
+
+    // 1. Try recommendations first
     const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
-    if (recommendations && recommendations.recommendedSymbols) {
-      return recommendations.recommendedSymbols
-        .map(r => r.symbol)
-        .filter(s => s !== ticker)
-        .slice(0, 10);
+    if (recommendations && recommendations.recommendedSymbols && recommendations.recommendedSymbols.length > 0) {
+      const peers = recommendations.recommendedSymbols
+        .filter(r => r.symbol !== ticker)
+        .slice(0, 5)
+        .map(r => ({
+          slug: r.symbol,
+          sector: `${sector} > ${industry}`,
+          marketCap: 0 // We'll fetch mCap later or use 0
+        }));
+      return peers;
     }
+
     return [];
   } catch (error) {
     console.error("Error fetching peers from Yahoo:", error);
     return [];
   }
-}
-
-function parseSectorHierarchy($: any): string {
-    const hierarchy: string[] = [];
-    // Target the specific icons/links shown in the user's screenshot
-    // Consumer Discretionary > Consumer Durables > Consumer Durables > Household Appliances
-    $('.company-links a, .breadcrumb-item a, .flex-row.flex-gap-8 a').each((_i: any, el: any) => {
-        const text = $(el).text().trim();
-        if (text && !hierarchy.includes(text)) {
-            hierarchy.push(text);
-        }
-    });
-
-    if (hierarchy.length === 0) {
-        // Fallback for different Screener layouts
-        const sectorText = $('p:contains("Sector")').text() || $('p:contains("Industry")').text();
-        if (sectorText) {
-            return sectorText.replace(/Sector:|Industry:/g, '').replace(/\|/g, ' > ').trim();
-        }
-    }
-
-    return hierarchy.join(' > ') || 'Industry';
-}
-
-function parsePeers(html: string): { slug: string; sector: string; marketCap: number }[] {
-    const $ = cheerio.load(html);
-    const peers: { slug: string; sector: string; marketCap: number }[] = [];
-    const sector = parseSectorHierarchy($);
-    
-    // Improved selector to catch the peer table more reliably across different templates
-    const peerTable = $('#peers table, .peer-comparison table, .data-table, table:has(th:contains("Name"))').first();
-    const rows = peerTable.find('tbody tr');
-
-    rows.each((_i: any, el: any) => {
-        const cells = $(el).find('td');
-        const anchor = $(el).find('a[href^="/company/"]');
-        
-        if (anchor.length) {
-            const href = anchor.attr('href');
-            const slug = href?.split('/')[2];
-            
-            // Market Cap extraction - look for the column with market cap data
-            // Usually the 5th column or one with numeric value > 100 in many cases
-            let mCap = 0;
-            cells.each((_j: any, td: any) => {
-                const text = $(td).text().replace(/,/g, '').trim();
-                const val = parseFloat(text);
-                // Heuristic: market caps in India are usually large numbers in this column
-                if (!isNaN(val) && val > mCap) mCap = val;
-            });
-
-            if (slug && !peers.some(p => p.slug === slug)) {
-                peers.push({ slug, sector, marketCap: mCap });
-            }
-        }
-    });
-
-    // Take top 5 by market cap as requested
-    return peers
-        .sort((a, b) => b.marketCap - a.marketCap)
-        .slice(0, 5);
-}
-
-async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number }[]> {
-  const symbol = ticker.split('.')[0];
-  // Strictly use Screener.in for peers to ensure they are from the same industry
-  let peers = await getPeersFromScreener(ticker);
-  
-  peers = peers.filter(p => p.slug.toLowerCase() !== symbol.toLowerCase());
-  
-  // No fallback to Yahoo recommendations as they can cross industries.
-  // We strictly stick to Screener's industry peers.
-  return peers;
 }
 
 export async function registerRoutes(

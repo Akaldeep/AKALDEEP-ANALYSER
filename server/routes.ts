@@ -164,7 +164,9 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
         const keywordOverlap = calculateKeywordOverlap(baseKeywords, peerKeywords);
         
         // Combine scores: 70% embedding, 30% keyword overlap
-        const combinedSimilarity = (embeddingSimilarity * 70) + (keywordOverlap * 0.3);
+        // embeddingSimilarity is -1 to 1, we want it 0 to 1 for similarity
+        const normalizedEmbeddingSim = (embeddingSimilarity + 1) / 2;
+        const combinedSimilarity = (normalizedEmbeddingSim * 70) + (keywordOverlap * 0.3);
         
         return {
           ...peer,

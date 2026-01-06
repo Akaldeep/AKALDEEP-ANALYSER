@@ -16,6 +16,7 @@ export const searches = pgTable("searches", {
     sector: string;
     similarityScore?: number;
     keywords?: string[];
+    confidence?: "High" | "Medium" | "Fallback";
   }[]>().notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -49,6 +50,9 @@ export const peerBetaSchema = z.object({
     ticker: z.string(),
     name: z.string(),
     beta: z.number().nullable(),
+    sector: z.string().optional(),
+    similarityScore: z.number().optional(),
+    confidence: z.enum(["High", "Medium", "Fallback"]).optional(),
     error: z.string().optional()
 });
 

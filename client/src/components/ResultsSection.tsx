@@ -100,9 +100,16 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 </div>
               </div>
               
-              <div className="mt-6 p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground leading-relaxed">
-                <span className="font-semibold text-foreground">Interpretation:</span> A beta of <span className="font-bold text-foreground">{data.beta.toFixed(3)}</span> means this stock is expected to move {data.beta > 1 ? "more" : "less"} than the market. 
-                For every 1% change in the <span className="font-bold text-foreground">{data.marketIndex}</span>, this stock is expected to change by approximately <span className="font-bold text-foreground">{data.beta.toFixed(3)}%</span>.
+              <div className="mt-6 flex flex-col gap-3">
+                <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground leading-relaxed">
+                  <span className="font-semibold text-foreground">Interpretation:</span> A beta of <span className="font-bold text-foreground">{data.beta.toFixed(3)}</span> means this stock is expected to move {data.beta > 1 ? "more" : "less"} than the market. 
+                  For every 1% change in the <span className="font-bold text-foreground">{data.marketIndex}</span>, this stock is expected to change by approximately <span className="font-bold text-foreground">{data.beta.toFixed(3)}%</span>.
+                </div>
+                <div className="flex items-center gap-2 px-1">
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-semibold opacity-70">
+                    Source: Yahoo Finance
+                  </Badge>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -163,8 +170,19 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground italic">
-                        <div className="max-w-[250px] truncate" title={(peer as any).sector}>
-                          {(peer as any).sector || "Same Industry"}
+                        <div className="flex flex-col gap-1">
+                          <div className="max-w-[250px] truncate" title={(peer as any).sector}>
+                            {(peer as any).sector || "Same Industry"}
+                          </div>
+                          {(peer as any).confidence && (
+                            <Badge variant="outline" className={`w-fit text-[9px] h-4 px-1.5 uppercase font-bold tracking-tighter ${
+                              (peer as any).confidence === 'High' ? 'text-emerald-500 border-emerald-500/30 bg-emerald-500/5' : 
+                              (peer as any).confidence === 'Medium' ? 'text-blue-500 border-blue-500/30 bg-blue-500/5' : 
+                              'text-amber-500 border-amber-500/30 bg-amber-500/5'
+                            }`}>
+                              {(peer as any).confidence} Match
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">

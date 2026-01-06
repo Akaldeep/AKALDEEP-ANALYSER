@@ -185,7 +185,8 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
           sector: `${s.assetProfile.sector || 'Unknown'} > ${s.assetProfile.industry || 'Unknown'}`,
           marketCap: s.summaryDetail?.marketCap || 0,
           similarityScore: Math.round(combinedScore),
-          keywords: keywords
+          keywords: keywords,
+          confidence: combinedScore >= 50 ? "High" : combinedScore >= 30 ? "Medium" : "Fallback"
         };
       }));
       return scored.filter((p): p is any => p !== null);

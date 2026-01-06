@@ -140,9 +140,21 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
       recSymbols.map(s => yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
     );
 
+    const targetSector = summary.assetProfile?.sector;
+    const targetIndustry = summary.assetProfile?.industry;
+
     const scoredPeers = await Promise.all(recSummaries.map(async (s, index) => {
       const peerTicker = recSymbols[index];
       if (!s?.assetProfile?.longBusinessSummary || peerTicker === ticker) return null;
+
+      // STRICT FILTERING: Peer must be in same sector and industry
+      const isSameSector = s.assetProfile.sector === targetSector;
+      const isSameIndustry = s.assetProfile.industry === targetIndustry;
+      
+      // Reliance is Oil & Gas. Peers like SBI (Finance) or TCS (IT) should be excluded.
+      // We allow fallback to sector if no exact industry matches exist, but for large firms, industry is best.
+      if (!isSameIndustry && !isSameSector) return null;
+      if (targetIndustry && !isSameIndustry) return null; // Force industry match for high accuracy
 
       // Use precomputed profile if available, otherwise fallback (one-time)
       let peerProfile = await storage.getCompanyProfile(peerTicker);

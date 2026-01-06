@@ -47,7 +47,18 @@ export function ResultsSection({ data }: ResultsSectionProps) {
     if (beta === null) return { color: "text-muted-foreground", icon: <Minus className="w-4 h-4" /> };
     if (beta > 1.2) return { color: "text-red-500", icon: <TrendingUp className="w-4 h-4" /> }; // High volatility
     if (beta < 0.8) return { color: "text-emerald-500", icon: <TrendingDown className="w-4 h-4" /> }; // Low volatility
-    return { color: "text-blue-500", icon: <Minus className="w-4 h-4 rotate-45" /> }; // Correlation
+    return { color: "text-blue-500", icon: <Minus className="w-4 h-4 rotate-45" /> };
+  };
+
+  const getConfidenceStyle = (confidence?: string) => {
+    switch (confidence) {
+      case 'High':
+        return 'text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/5';
+      case 'Medium':
+        return 'text-blue-600 dark:text-blue-400 border-blue-500/30 bg-blue-500/5';
+      default:
+        return 'text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/5';
+    }
   };
 
   const mainBetaStyle = getBetaStyle(data.beta);
@@ -106,7 +117,10 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   For every 1% change in the <span className="font-bold text-foreground">{data.marketIndex}</span>, this stock is expected to change by approximately <span className="font-bold text-foreground">{data.beta.toFixed(3)}%</span>.
                 </div>
                 <div className="flex items-center gap-2 px-1">
-                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-semibold opacity-70">
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold opacity-60 bg-muted/20 border-muted-foreground/20">
+                    Calculated via 5Y Historical Data
+                  </Badge>
+                  <Badge variant="outline" className="sm:hidden text-[10px] uppercase tracking-wider font-bold opacity-60 bg-muted/20 border-muted-foreground/20">
                     Source: Yahoo Finance
                   </Badge>
                 </div>
@@ -142,83 +156,90 @@ export function ResultsSection({ data }: ResultsSectionProps) {
 
       {/* Peer Comparison Table */}
       <motion.div variants={item}>
-        <Card className="overflow-hidden shadow-xl border-t-0">
-          <CardHeader className="bg-muted/30 border-b">
-            <CardTitle>Comparable Companies Analysis</CardTitle>
+        <Card className="overflow-hidden shadow-xl border-t-0 bg-card/50 backdrop-blur-sm">
+          <CardHeader className="bg-muted/30 border-b py-4">
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle className="text-lg font-bold">Comparable Companies Analysis</CardTitle>
+              <Badge variant="outline" className="hidden sm:flex text-[10px] uppercase tracking-wider font-bold opacity-60">
+                Source: Yahoo Finance
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[40%] pl-6">Company Name</TableHead>
-                  <TableHead>Sector/Industry</TableHead>
-                  <TableHead className="text-right">Beta (5Y)</TableHead>
-                  <TableHead className="text-right pr-6">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.peers.map((peer, idx) => {
-                  const style = getBetaStyle(peer.beta);
-                  return (
-                    <TableRow key={peer.ticker} className="group hover:bg-muted/50 transition-colors">
-                      <TableCell className="font-medium pl-6 text-foreground/90">
-                        <div className="flex flex-col">
-                          <span>{peer.name}</span>
-                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block md:hidden">
-                            {(peer as any).sector}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground italic">
-                        <div className="flex flex-col gap-1">
-                          <div className="max-w-[250px] truncate" title={(peer as any).sector}>
-                            {(peer as any).sector || "Same Industry"}
-                          </div>
-                          {(peer as any).confidence && (
-                            <Badge variant="outline" className={`w-fit text-[9px] h-4 px-1.5 uppercase font-bold tracking-tighter ${
-                              (peer as any).confidence === 'High' ? 'text-emerald-500 border-emerald-500/30 bg-emerald-500/5' : 
-                              (peer as any).confidence === 'Medium' ? 'text-blue-500 border-blue-500/30 bg-blue-500/5' : 
-                              'text-amber-500 border-amber-500/30 bg-amber-500/5'
-                            }`}>
-                              {(peer as any).confidence} Match
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {peer.beta !== null ? (
-                          <div className="flex flex-col items-end">
-                            <span className={`font-mono-numbers font-bold ${style.color}`}>
-                              {peer.beta.toFixed(3)}
-                            </span>
-                            {peer.similarityScore !== undefined && (
-                              <span className="text-[10px] text-muted-foreground font-medium">
-                                Similarity: {peer.similarityScore}%
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent bg-muted/20">
+                    <TableHead className="w-[35%] pl-6 py-4 text-xs font-bold uppercase tracking-wider">Company Name</TableHead>
+                    <TableHead className="py-4 text-xs font-bold uppercase tracking-wider">Sector & Industry</TableHead>
+                    <TableHead className="text-right py-4 text-xs font-bold uppercase tracking-wider">Beta (5Y)</TableHead>
+                    <TableHead className="text-right pr-6 py-4 text-xs font-bold uppercase tracking-wider">Analysis</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.peers.map((peer, idx) => {
+                    const style = getBetaStyle(peer.beta);
+                    return (
+                      <TableRow key={peer.ticker} className="group hover:bg-muted/50 transition-colors border-b last:border-0">
+                        <TableCell className="font-semibold pl-6 py-4 text-foreground/90">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm">{peer.name}</span>
+                            <div className="flex items-center gap-1.5">
+                              <code className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground">
+                                {peer.ticker}
+                              </code>
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block md:hidden truncate max-w-[120px]">
+                                {(peer as any).sector}
                               </span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <div className="flex flex-col gap-1.5">
+                            <div className="text-xs text-muted-foreground font-medium max-w-[200px] truncate" title={(peer as any).sector}>
+                              {(peer as any).sector || "General Market"}
+                            </div>
+                            {(peer as any).confidence && (
+                              <Badge variant="outline" className={`w-fit text-[9px] h-4.5 px-2 py-0 uppercase font-bold tracking-tight border shadow-sm ${getConfidenceStyle((peer as any).confidence)}`}>
+                                {(peer as any).confidence} Match
+                              </Badge>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right pr-6">
-                        {peer.error ? (
-                          <div className="flex items-center justify-end gap-2 text-amber-600 text-xs">
-                            <AlertCircle className="w-3 h-3" />
-                            <span>Data Unavailable</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-end gap-2">
-                             {style.icon}
-                             <span className="text-xs text-muted-foreground font-medium">
-                               {peer.beta! > 1 ? "High Volatility" : "Low Volatility"}
-                             </span>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                        </TableCell>
+                        <TableCell className="text-right py-4">
+                          {peer.beta !== null ? (
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span className={`text-base font-mono-numbers font-black ${style.color}`}>
+                                {peer.beta.toFixed(3)}
+                              </span>
+                              {peer.similarityScore !== undefined && (
+                                <span className="text-[10px] text-muted-foreground font-bold tracking-tight">
+                                  {peer.similarityScore}% Similarity
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right pr-6 py-4">
+                          {peer.error ? (
+                            <div className="flex items-center justify-end gap-1.5 text-amber-600 font-bold text-[10px] uppercase">
+                              <AlertCircle className="w-3 h-3" />
+                              <span>Missing Data</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-2">
+                               {style.icon}
+                               <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">
+                                 {peer.beta! > 1.2 ? "High Risk" : peer.beta! < 0.8 ? "Stable" : "Balanced"}
+                               </span>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 {data.peers.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center">

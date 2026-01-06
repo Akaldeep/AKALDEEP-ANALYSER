@@ -115,6 +115,51 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
 
 async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number; similarityScore?: number; keywords?: string[] }[]> {
   try {
+    // 1. TRY SCREENER.IN SCRAPING FIRST
+    try {
+      // Remove .NS or .BO suffix for Screener
+      const screenerTicker = ticker.split('.')[0];
+      const url = `https://www.screener.in/company/${screenerTicker}/`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      });
+
+      if (response.ok) {
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        const peers: any[] = [];
+        
+        // Screener peer table rows usually have data-row-id
+        // We look for links in the peer table
+        $('table.peers tr td:nth-child(2) a').each((_, el) => {
+          const peerName = $(el).text().trim();
+          const href = $(el).attr('href');
+          if (href) {
+            const slug = href.split('/').filter(Boolean).pop();
+            if (slug && slug.toUpperCase() !== screenerTicker.toUpperCase()) {
+              peers.push({
+                slug: slug.toUpperCase(),
+                sector: 'Screener Peer Group',
+                marketCap: 0,
+                similarityScore: 100 // Screener peers are high quality
+              });
+            }
+          }
+        });
+
+        if (peers.length > 0) {
+          console.log(`Successfully scraped ${peers.length} peers from Screener for ${screenerTicker}`);
+          return peers.slice(0, 5);
+        }
+      }
+    } catch (scrapeError) {
+      console.error("Screener scraping failed, falling back to Yahoo:", scrapeError);
+    }
+
+    // 2. FALLBACK TO YAHOO FINANCE
     const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
     if (!summary) return [];
 

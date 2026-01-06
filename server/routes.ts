@@ -119,79 +119,69 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
     const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
     if (!summary) return [];
 
-    const baseDescription = summary.assetProfile?.longBusinessSummary;
-    if (!baseDescription) return [];
-
-    const [baseEmbedding, baseKeywords] = await Promise.all([
-      getEmbedding(baseDescription),
-      generateKeywords(baseDescription)
-    ]);
-
-    // Fetch recommendations
-    const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
-    if (!recommendations || !recommendations.recommendedSymbols || recommendations.recommendedSymbols.length === 0) {
-      return [];
+    let baseProfile = await storage.getCompanyProfile(ticker);
+    if (!baseProfile) {
+      const description = summary.assetProfile?.longBusinessSummary;
+      if (description) {
+        const [embedding, keywords] = await Promise.all([
+          getEmbedding(description),
+          generateKeywords(description)
+        ]);
+        baseProfile = await storage.upsertCompanyProfile({ ticker, keywords, embedding });
+      }
     }
 
-    // Fetch summaries for all recommended symbols to get descriptions and market cap
+    if (!baseProfile) return [];
+
+    const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
+    if (!recommendations?.recommendedSymbols) return [];
+
     const recSymbols = recommendations.recommendedSymbols.map(r => r.symbol);
     const recSummaries = await Promise.all(
       recSymbols.map(s => yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
     );
 
-    const peerCandidates = recSummaries
-      .map((s, index) => {
-        if (!s || !s.assetProfile?.longBusinessSummary) return null;
-        return {
-          slug: recSymbols[index],
-          description: s.assetProfile.longBusinessSummary,
-          sector: s.assetProfile.sector,
-          industry: s.assetProfile.industry,
-          marketCap: s.summaryDetail?.marketCap || 0
-        };
-      })
-      .filter((p): p is any => p !== null && p.slug !== ticker);
+    const scoredPeers = await Promise.all(recSummaries.map(async (s, index) => {
+      const peerTicker = recSymbols[index];
+      if (!s?.assetProfile?.longBusinessSummary || peerTicker === ticker) return null;
 
-    // Compute similarity scores using embeddings and keywords
-    const scoredPeers = await Promise.all(peerCandidates.map(async (peer) => {
-      try {
-        const [peerEmbedding, peerKeywords] = await Promise.all([
-          getEmbedding(peer.description),
-          generateKeywords(peer.description)
+      // Use precomputed profile if available, otherwise fallback (one-time)
+      let peerProfile = await storage.getCompanyProfile(peerTicker);
+      if (!peerProfile) {
+        const description = s.assetProfile.longBusinessSummary;
+        const [embedding, keywords] = await Promise.all([
+          getEmbedding(description),
+          generateKeywords(description)
         ]);
-        
-        const embeddingSimilarity = cosineSimilarity(baseEmbedding, peerEmbedding);
-        const keywordOverlap = calculateKeywordOverlap(baseKeywords, peerKeywords);
-        
-        // Combine scores: 70% embedding, 30% keyword overlap
-        // embeddingSimilarity is -1 to 1, we want it 0 to 1 for similarity
-        const normalizedEmbeddingSim = (embeddingSimilarity + 1) / 2;
-        const combinedSimilarity = (normalizedEmbeddingSim * 70) + (keywordOverlap * 0.3);
-        
-        return {
-          ...peer,
-          similarityScore: Math.round(combinedSimilarity),
-          keywords: peerKeywords
-        };
-      } catch (e) {
-        console.error(`Error computing similarity for peer ${peer.slug}:`, e);
-        return null;
+        peerProfile = await storage.upsertCompanyProfile({ ticker: peerTicker, keywords, embedding });
       }
+
+      const embeddingSimilarity = cosineSimilarity(baseProfile!.embedding, peerProfile.embedding);
+      // Normalize embedding similarity from [-1, 1] to [0, 100]
+      const normEmbeddingScore = ((embeddingSimilarity + 1) / 2) * 100;
+      
+      const keywordOverlap = calculateKeywordOverlap(baseProfile!.keywords, peerProfile.keywords);
+      // keywordOverlap is already 0-100 (intersection/5 * 100)
+      
+      const combinedScore = (normEmbeddingScore * 0.7) + (keywordOverlap * 0.3);
+      
+      if (combinedScore < 50) return null;
+
+      return {
+        slug: peerTicker,
+        sector: `${s.assetProfile.sector || 'Unknown'} > ${s.assetProfile.industry || 'Unknown'}`,
+        marketCap: s.summaryDetail?.marketCap || 0,
+        similarityScore: Math.round(combinedScore),
+        keywords: peerProfile.keywords
+      };
     }));
 
-    const finalPeers = scoredPeers
+    return scoredPeers
       .filter((p): p is any => p !== null)
-      .sort((a, b) => (b.similarityScore || 0) - (a.similarityScore || 0));
-
-    return finalPeers.slice(0, 5).map(p => ({
-      slug: p.slug,
-      sector: `${p.sector || 'Unknown'} > ${p.industry || 'Unknown'}`,
-      marketCap: p.marketCap,
-      similarityScore: p.similarityScore,
-      keywords: p.keywords
-    }));
+      .sort((a, b) => b.similarityScore - a.similarityScore)
+      .slice(0, 5);
   } catch (error) {
-    console.error("Error fetching similarity-based peers from Yahoo:", error);
+    console.error("Error fetching similarity-based peers:", error);
     return [];
   }
 }

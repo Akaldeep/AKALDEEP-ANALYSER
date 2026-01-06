@@ -20,10 +20,20 @@ export const searches = pgTable("searches", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const companyProfiles = pgTable("company_profiles", {
+  ticker: text("ticker").primaryKey(),
+  keywords: text("keywords").array().notNull(),
+  embedding: doublePrecision("embedding").array().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertSearchSchema = createInsertSchema(searches).omit({ id: true, createdAt: true });
+export const insertCompanyProfileSchema = createInsertSchema(companyProfiles);
 
 export type Search = typeof searches.$inferSelect;
 export type InsertSearch = z.infer<typeof insertSearchSchema>;
+export type CompanyProfile = typeof companyProfiles.$inferSelect;
+export type InsertCompanyProfile = z.infer<typeof insertCompanyProfileSchema>;
 
 // API Request/Response Types
 export const calculateBetaSchema = z.object({

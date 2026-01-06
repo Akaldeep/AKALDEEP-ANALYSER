@@ -148,22 +148,15 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
       let peerProfile = await storage.getCompanyProfile(peerTicker);
       if (!peerProfile) {
         const description = s.assetProfile.longBusinessSummary;
-        const [embedding, keywords] = await Promise.all([
-          getEmbedding(description),
-          generateKeywords(description)
-        ]);
-        peerProfile = await storage.upsertCompanyProfile({ ticker: peerTicker, keywords, embedding });
+        const keywords = await generateKeywords(description);
+        peerProfile = await storage.upsertCompanyProfile({ ticker: peerTicker, keywords, embedding: new Array(1536).fill(0) });
       }
 
-      const embeddingSimilarity = 1.0; 
-      const normalizedEmbeddingSim = 100; 
-      
       const keywordOverlap = calculateKeywordOverlap(baseProfile!.keywords, peerProfile.keywords);
-      // Ensure results by using a very low threshold and keyword-based score
-      const combinedScore = keywordOverlap > 0 ? (20 + (keywordOverlap * 0.8)) : 0;
+      // Boost the score calculation to be more generous with keyword overlap
+      // intersection/5 * 100
+      const combinedScore = keywordOverlap > 0 ? (30 + (keywordOverlap * 0.7)) : 10;
       
-      if (combinedScore < 10) return null; 
-
       return {
         slug: peerTicker,
         sector: `${s.assetProfile.sector || 'Unknown'} > ${s.assetProfile.industry || 'Unknown'}`,

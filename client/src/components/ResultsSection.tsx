@@ -10,7 +10,6 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { AlertCircle, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
 interface ResultsSectionProps {
@@ -21,6 +20,7 @@ interface ResultsSectionProps {
       beta: number | null;
       sector?: string;
       similarityScore?: number;
+      confidence?: string;
       error?: string;
     }>;
   };
@@ -42,11 +42,10 @@ export function ResultsSection({ data }: ResultsSectionProps) {
     show: { opacity: 1, y: 0 }
   };
 
-  // Helper to determine beta color/icon
   const getBetaStyle = (beta: number | null) => {
     if (beta === null) return { color: "text-muted-foreground", icon: <Minus className="w-4 h-4" /> };
-    if (beta > 1.2) return { color: "text-red-500", icon: <TrendingUp className="w-4 h-4" /> }; // High volatility
-    if (beta < 0.8) return { color: "text-emerald-500", icon: <TrendingDown className="w-4 h-4" /> }; // Low volatility
+    if (beta > 1.2) return { color: "text-red-500", icon: <TrendingUp className="w-4 h-4" /> };
+    if (beta < 0.8) return { color: "text-emerald-500", icon: <TrendingDown className="w-4 h-4" /> };
     return { color: "text-blue-500", icon: <Minus className="w-4 h-4 rotate-45" /> };
   };
 
@@ -120,7 +119,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold opacity-60 bg-muted/20 border-muted-foreground/20">
                     Calculated via 5Y Historical Data
                   </Badge>
-                  <Badge variant="outline" className="sm:hidden text-[10px] uppercase tracking-wider font-bold opacity-60 bg-muted/20 border-muted-foreground/20">
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold opacity-60 bg-muted/20 border-muted-foreground/20">
                     Source: Yahoo Finance
                   </Badge>
                 </div>
@@ -177,7 +176,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.peers.map((peer, idx) => {
+                  {data.peers.map((peer) => {
                     const style = getBetaStyle(peer.beta);
                     return (
                       <TableRow key={peer.ticker} className="group hover:bg-muted/50 transition-colors border-b last:border-0">
@@ -188,20 +187,17 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                               <code className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground">
                                 {peer.ticker}
                               </code>
-                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block md:hidden truncate max-w-[120px]">
-                                {(peer as any).sector}
-                              </span>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell className="py-4">
                           <div className="flex flex-col gap-1.5">
-                            <div className="text-xs text-muted-foreground font-medium max-w-[200px] truncate" title={(peer as any).sector}>
-                              {(peer as any).sector || "General Market"}
+                            <div className="text-xs text-muted-foreground font-medium max-w-[200px] truncate" title={peer.sector}>
+                              {peer.sector || "General Market"}
                             </div>
-                            {(peer as any).confidence && (
-                              <Badge variant="outline" className={`w-fit text-[9px] h-4.5 px-2 py-0 uppercase font-bold tracking-tight border shadow-sm ${getConfidenceStyle((peer as any).confidence)}`}>
-                                {(peer as any).confidence} Match
+                            {peer.confidence && (
+                              <Badge variant="outline" className={`w-fit text-[9px] h-4.5 px-2 py-0 uppercase font-bold tracking-tight border shadow-sm ${getConfidenceStyle(peer.confidence)}`}>
+                                {peer.confidence} Match
                               </Badge>
                             )}
                           </div>
@@ -240,15 +236,16 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                       </TableRow>
                     );
                   })}
-                {data.peers.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
-                       No comparable peers found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  {data.peers.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="h-24 text-center">
+                        No comparable peers found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </motion.div>

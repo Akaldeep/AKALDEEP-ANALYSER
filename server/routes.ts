@@ -115,118 +115,106 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
 
 async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number; similarityScore?: number; keywords?: string[] }[]> {
   try {
-    // 1. TRY SCREENER.IN SCRAPING FIRST
-    try {
-      // Remove .NS or .BO suffix for Screener
-      const screenerTicker = ticker.split('.')[0];
-      const url = `https://www.screener.in/company/${screenerTicker}/`;
-      
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-      });
-
-      if (response.ok) {
-        const html = await response.text();
-        const $ = cheerio.load(html);
-        const peers: any[] = [];
-        
-        // Screener peer table rows usually have data-row-id
-        // We look for links in the peer table
-        $('table.peers tr td:nth-child(2) a').each((_, el) => {
-          const peerName = $(el).text().trim();
-          const href = $(el).attr('href');
-          if (href) {
-            const slug = href.split('/').filter(Boolean).pop();
-            if (slug && slug.toUpperCase() !== screenerTicker.toUpperCase()) {
-              peers.push({
-                slug: slug.toUpperCase(),
-                sector: 'Screener Peer Group',
-                marketCap: 0,
-                similarityScore: 100 // Screener peers are high quality
-              });
-            }
-          }
-        });
-
-        if (peers.length > 0) {
-          console.log(`Successfully scraped ${peers.length} peers from Screener for ${screenerTicker}`);
-          return peers.slice(0, 5);
-        }
-      }
-    } catch (scrapeError) {
-      console.error("Screener scraping failed, falling back to Yahoo:", scrapeError);
-    }
-
-    // 2. FALLBACK TO YAHOO FINANCE
     const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
     if (!summary) return [];
 
-    let baseProfile = await storage.getCompanyProfile(ticker);
-    if (!baseProfile) {
-      const description = summary.assetProfile?.longBusinessSummary;
-      if (description) {
-        const [embedding, keywords] = await Promise.all([
-          getEmbedding(description),
-          generateKeywords(description)
-        ]);
-        baseProfile = await storage.upsertCompanyProfile({ ticker, keywords, embedding });
-      }
-    }
-
-    if (!baseProfile) return [];
-
-    const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
-    if (!recommendations?.recommendedSymbols) return [];
-
-    const recSymbols = recommendations.recommendedSymbols.map(r => r.symbol);
-    const recSummaries = await Promise.all(
-      recSymbols.map(s => yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
-    );
-
     const targetSector = summary.assetProfile?.sector;
     const targetIndustry = summary.assetProfile?.industry;
+    const targetSummary = summary.assetProfile?.longBusinessSummary || "";
+    const useAI = targetSummary.length >= 200;
 
-    const scoredPeers = await Promise.all(recSummaries.map(async (s, index) => {
-      const peerTicker = recSymbols[index];
-      if (!s?.assetProfile?.longBusinessSummary || peerTicker === ticker) return null;
+    let baseProfile = await storage.getCompanyProfile(ticker);
+    if (useAI && !baseProfile) {
+      const [embedding, keywords] = await Promise.all([
+        getEmbedding(targetSummary),
+        generateKeywords(targetSummary)
+      ]);
+      baseProfile = await storage.upsertCompanyProfile({ ticker, keywords, embedding });
+    }
 
-      // RELAXED FILTERING: 
-      // 1. Try exact industry match first.
-      // 2. If no industry matches, fallback to same sector.
-      const isSameSector = s.assetProfile.sector === targetSector;
-      const isSameIndustry = s.assetProfile.industry === targetIndustry;
-      
-      // Minimum requirement: Must be in the same sector.
-      if (!isSameSector) return null;
+    const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
+    const recSymbols = recommendations?.recommendedSymbols?.map(r => r.symbol) || [];
+    
+    // Tiered Candidate Universe Logic
+    const fetchRecs = async (symbols: string[]) => {
+      return Promise.all(
+        symbols.map(s => yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
+      );
+    };
 
-      // Use precomputed profile if available, otherwise fallback (one-time)
-      let peerProfile = await storage.getCompanyProfile(peerTicker);
-      if (!peerProfile) {
-        const description = s.assetProfile.longBusinessSummary;
-        const keywords = await generateKeywords(description);
-        peerProfile = await storage.upsertCompanyProfile({ ticker: peerTicker, keywords, embedding: new Array(1536).fill(0) });
-      }
+    const recSummaries = await fetchRecs(recSymbols);
+    
+    const evaluatePeers = async (summaries: any[], currentSymbols: string[], minThreshold: number) => {
+      const scored = await Promise.all(summaries.map(async (s, index) => {
+        const peerTicker = currentSymbols[index];
+        if (!s?.assetProfile || peerTicker === ticker) return null;
 
-      const keywordOverlap = calculateKeywordOverlap(baseProfile!.keywords, peerProfile.keywords);
-      // Boost the score calculation to be more generous with keyword overlap
-      // intersection/5 * 100
-      const combinedScore = keywordOverlap > 0 ? (30 + (keywordOverlap * 0.7)) : 10;
-      
-      return {
-        slug: peerTicker,
-        sector: `${s.assetProfile.sector || 'Unknown'} > ${s.assetProfile.industry || 'Unknown'}`,
-        marketCap: s.summaryDetail?.marketCap || 0,
-        similarityScore: Math.round(combinedScore),
-        keywords: peerProfile.keywords
-      };
-    }));
+        const isSameSector = s.assetProfile.sector === targetSector;
+        const isSameIndustry = s.assetProfile.industry === targetIndustry;
+        
+        // Strictness based on tiers will be handled by the caller filtering recSummaries
+        const peerSummary = s.assetProfile.longBusinessSummary || "";
+        const peerUseAI = useAI && peerSummary.length >= 200;
 
-    return scoredPeers
-      .filter((p): p is any => p !== null)
-      .sort((a, b) => b.similarityScore - a.similarityScore)
-      .slice(0, 5);
+        let combinedScore = 0;
+        let keywords: string[] = [];
+
+        if (peerUseAI && baseProfile) {
+          let peerProfile = await storage.getCompanyProfile(peerTicker);
+          if (!peerProfile) {
+            keywords = await generateKeywords(peerSummary);
+            peerProfile = await storage.upsertCompanyProfile({ 
+              ticker: peerTicker, 
+              keywords, 
+              embedding: new Array(1536).fill(0) 
+            });
+          } else {
+            keywords = peerProfile.keywords;
+          }
+          const keywordOverlap = calculateKeywordOverlap(baseProfile.keywords, peerProfile.keywords);
+          combinedScore = keywordOverlap > 0 ? (30 + (keywordOverlap * 0.7)) : 10;
+        } else {
+          // Fallback scoring for weak summaries
+          combinedScore = isSameIndustry ? 45 : (isSameSector ? 25 : 10);
+        }
+
+        if (combinedScore < minThreshold) return null;
+
+        return {
+          slug: peerTicker,
+          sector: `${s.assetProfile.sector || 'Unknown'} > ${s.assetProfile.industry || 'Unknown'}`,
+          marketCap: s.summaryDetail?.marketCap || 0,
+          similarityScore: Math.round(combinedScore),
+          keywords: keywords
+        };
+      }));
+      return scored.filter((p): p is any => p !== null);
+    };
+
+    // Tiers and Dynamic Thresholds
+    const thresholds = [50, 40, 30];
+    for (const threshold of thresholds) {
+      // Tier 1: Same Industry
+      const industryPeers = await evaluatePeers(
+        recSummaries.filter(s => s?.assetProfile?.industry === targetIndustry),
+        recSymbols.filter((_, i) => recSummaries[i]?.assetProfile?.industry === targetIndustry),
+        threshold
+      );
+      if (industryPeers.length >= 3) return industryPeers.sort((a, b) => b.similarityScore - a.similarityScore).slice(0, 5);
+
+      // Tier 2: Same Sector
+      const sectorPeers = await evaluatePeers(
+        recSummaries.filter(s => s?.assetProfile?.sector === targetSector),
+        recSymbols.filter((_, i) => recSummaries[i]?.assetProfile?.sector === targetSector),
+        threshold
+      );
+      if (sectorPeers.length >= 3) return sectorPeers.sort((a, b) => b.similarityScore - a.similarityScore).slice(0, 5);
+    }
+
+    // Final Fallback: Best available from all recs at lowest threshold
+    const finalFallback = await evaluatePeers(recSummaries, recSymbols, 0);
+    return finalFallback.sort((a, b) => b.similarityScore - a.similarityScore).slice(0, 5);
+
   } catch (error) {
     console.error("Error fetching similarity-based peers:", error);
     return [];

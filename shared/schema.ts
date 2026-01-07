@@ -61,8 +61,10 @@ export type PeerBeta = z.infer<typeof peerBetaSchema>;
 
 export const calculateBetaResponseSchema = z.object({
     ticker: z.string(),
+    name: z.string().optional(),
     marketIndex: z.string(),
     beta: z.number(),
+    period: z.string().optional(),
     peers: z.array(peerBetaSchema)
 });
 

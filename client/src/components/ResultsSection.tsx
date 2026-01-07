@@ -24,10 +24,10 @@ interface ResultsSectionProps {
 
 const MetricTooltip = ({ title, definition }: { title: string; definition: string }) => (
   <TooltipProvider>
-    <Tooltip>
+    <Tooltip delayDuration={0}>
       <TooltipTrigger asChild>
         <button className="inline-flex items-center ml-1 text-slate-400 hover:text-slate-600 transition-colors">
-          <Info className="w-3 h-3" />
+          <Info className="w-3.5 h-3.5" />
         </button>
       </TooltipTrigger>
       <TooltipContent className="max-w-xs p-3 bg-slate-900 text-white border-none shadow-xl">
@@ -208,12 +208,12 @@ export function ResultsSection({ data }: ResultsSectionProps) {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent bg-slate-50/30">
-                    <TableHead className="w-[25%] pl-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Asset Name</TableHead>
-                    <TableHead className="py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Industry</TableHead>
-                    <TableHead className="text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Beta</TableHead>
-                    <TableHead className="text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Volatility</TableHead>
-                    <TableHead className="text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">R-Squared</TableHead>
-                    <TableHead className="text-right pr-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Metric</TableHead>
+                    <TableHead className="w-[30%] pl-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Asset Name</TableHead>
+                    <TableHead className="w-[20%] py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Industry</TableHead>
+                    <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Beta</TableHead>
+                    <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Volatility</TableHead>
+                    <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">R-Squared</TableHead>
+                    <TableHead className="w-[14%] text-right pr-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Metric</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

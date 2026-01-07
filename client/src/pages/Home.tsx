@@ -79,6 +79,7 @@ function FinanceFactCarousel() {
 const formSchema = z.object({
   ticker: z.string().min(1, "Ticker is required"),
   exchange: z.enum(["NSE", "BSE"]),
+  period: z.enum(["1Y", "3Y", "5Y"]),
   endDate: z.date(),
 });
 
@@ -93,6 +94,7 @@ export default function Home() {
     defaultValues: {
       ticker: "",
       exchange: "NSE",
+      period: "5Y",
       endDate: new Date(),
     },
   });
@@ -101,10 +103,12 @@ export default function Home() {
     setShowResults(false);
     resetMutation();
     const end = startOfDay(values.endDate);
-    const start = subYears(end, 5);
+    const years = parseInt(values.period[0]);
+    const start = subYears(end, years);
     mutate({
       ticker: values.ticker.toUpperCase(),
       exchange: values.exchange,
+      period: values.period,
       startDate: start.toISOString(),
       endDate: end.toISOString(),
     }, {
@@ -113,14 +117,14 @@ export default function Home() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8">
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
       {/* Header Section */}
       <div className="space-y-2">
         <h1 className="text-3xl font-black tracking-tight text-slate-900 uppercase">
           Beta Coefficient Terminal
         </h1>
         <p className="text-sm text-slate-500 font-medium max-w-2xl">
-          Institutional-grade risk analytics for Indian equities. Input a ticker to calculate 5-year historical beta relative to national benchmarks.
+          Institutional-grade risk analytics for Indian equities. Input parameters to calculate historical beta and analyze peer correlation.
         </p>
       </div>
 
@@ -128,17 +132,17 @@ export default function Home() {
       <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
         <CardHeader className="border-b bg-slate-50/50 py-4 px-6">
           <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
-            Analysis Parameters
+            Terminal Configuration
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-wrap gap-6 items-end">
               <FormField
                 control={form.control}
                 name="ticker"
                 render={({ field }) => (
-                  <FormItem className="space-y-1.5">
+                  <FormItem className="min-w-[180px] flex-1 space-y-1.5">
                     <FormLabel className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Stock Ticker</FormLabel>
                     <FormControl>
                       <div className="relative">
@@ -159,7 +163,7 @@ export default function Home() {
                 control={form.control}
                 name="exchange"
                 render={({ field }) => (
-                  <FormItem className="space-y-1.5">
+                  <FormItem className="min-w-[140px] space-y-1.5">
                     <FormLabel className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Exchange</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
@@ -168,8 +172,31 @@ export default function Home() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="NSE">NSE (NIFTY 50)</SelectItem>
-                        <SelectItem value="BSE">BSE (SENSEX)</SelectItem>
+                        <SelectItem value="NSE">NSE</SelectItem>
+                        <SelectItem value="BSE">BSE</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="period"
+                render={({ field }) => (
+                  <FormItem className="min-w-[140px] space-y-1.5">
+                    <FormLabel className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Analysis Period</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="h-10 text-sm font-semibold border-slate-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="1Y">1 Year Daily</SelectItem>
+                        <SelectItem value="3Y">3 Year Daily</SelectItem>
+                        <SelectItem value="5Y">5 Year Daily</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -181,7 +208,7 @@ export default function Home() {
                 control={form.control}
                 name="endDate"
                 render={({ field }) => (
-                  <FormItem className="space-y-1.5">
+                  <FormItem className="min-w-[180px] flex-1 space-y-1.5">
                     <FormLabel className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Analysis End Date</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
@@ -215,13 +242,13 @@ export default function Home() {
 
               <Button 
                 type="submit" 
-                className="h-10 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-widest transition-all active:scale-[0.98]"
+                className="h-10 min-w-[140px] bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-widest transition-all active:scale-[0.98]"
                 disabled={isPending}
               >
                 {isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  "Run Analysis"
+                  "Run Terminal"
                 )}
               </Button>
             </form>

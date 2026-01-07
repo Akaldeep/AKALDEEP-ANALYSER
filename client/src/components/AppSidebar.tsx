@@ -9,17 +9,14 @@ import {
   SidebarMenuItem,
   SidebarHeader,
 } from "@/components/ui/sidebar";
-import { BarChart3, PieChart, History, Settings, Info } from "lucide-react";
+import { BarChart3, Settings } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
 const menuItems = [
-  { title: "Beta Calculator", icon: BarChart3, url: "/" },
-  { title: "Peer Analytics", icon: PieChart, url: "/peers" },
-  { title: "Historical Data", icon: History, url: "/history" },
+  { title: "Analysis Terminal", icon: BarChart3, url: "/" },
 ];
 
 const secondaryItems = [
-  { title: "Methodology", icon: Info, url: "/methodology" },
   { title: "Settings", icon: Settings, url: "/settings" },
 ];
 

@@ -40,6 +40,7 @@ export type InsertCompanyProfile = z.infer<typeof insertCompanyProfileSchema>;
 export const calculateBetaSchema = z.object({
     ticker: z.string().min(1),
     exchange: z.enum(["NSE", "BSE"]),
+    period: z.enum(["1Y", "3Y", "5Y"]).default("5Y"),
     startDate: z.string(), // ISO Date string
     endDate: z.string(),   // ISO Date string
 });

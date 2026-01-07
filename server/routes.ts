@@ -229,7 +229,7 @@ export async function registerRoutes(
 
   app.post(api.beta.calculate.path, async (req, res) => {
     try {
-      const { ticker, exchange, startDate, endDate } = api.beta.calculate.input.parse(req.body);
+      const { ticker, exchange, startDate, endDate, period } = api.beta.calculate.input.parse(req.body);
 
       let marketTicker = "";
       let suffix = "";
@@ -380,6 +380,7 @@ export async function registerRoutes(
           name: companyName,
           marketIndex: marketTicker === "^NSEI" ? "NIFTY 50" : "BSE SENSEX",
           beta,
+          period: period || "5Y",
           peers: finalPeers
       };
 

@@ -54,8 +54,8 @@ function FinanceFactCarousel() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-lg border border-slate-200 max-w-lg mx-auto mb-10">
-      <div className="flex items-center gap-2 mb-3 text-blue-600">
+    <div className="flex flex-col items-center justify-center p-6 bg-muted/30 rounded-lg border border-border max-w-lg mx-auto mb-10 transition-colors">
+      <div className="flex items-center gap-2 mb-3 text-primary">
         <Lightbulb className="w-4 h-4" />
         <span className="text-[10px] font-bold uppercase tracking-widest">Market Insights</span>
       </div>
@@ -66,7 +66,7 @@ function FinanceFactCarousel() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="text-sm text-slate-600 font-medium"
+            className="text-sm text-muted-foreground font-medium"
           >
             {financeFacts[index]}
           </motion.p>
@@ -120,18 +120,18 @@ export default function Home() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       {/* Header Section */}
       <div className="space-y-2">
-        <h1 className="text-3xl font-black tracking-tight text-slate-900 uppercase">
+        <h1 className="text-3xl font-black tracking-tight text-foreground uppercase">
           Beta Coefficient Terminal
         </h1>
-        <p className="text-sm text-slate-500 font-medium max-w-2xl">
+        <p className="text-sm text-muted-foreground font-medium max-w-2xl">
           Institutional-grade risk analytics for Indian equities. Input parameters to calculate historical beta and analyze peer correlation.
         </p>
       </div>
 
       {/* Control Panel */}
-      <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
-        <CardHeader className="border-b bg-slate-50/50 py-4 px-6">
-          <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+      <Card className="shadow-sm border-border bg-card overflow-hidden transition-colors">
+        <CardHeader className="border-b bg-muted/30 py-4 px-6">
+          <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
             Terminal Configuration
           </CardTitle>
         </CardHeader>
@@ -143,13 +143,13 @@ export default function Home() {
                 name="ticker"
                 render={({ field }) => (
                   <FormItem className="min-w-[180px] flex-1 space-y-1.5">
-                    <FormLabel className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Stock Ticker</FormLabel>
+                    <FormLabel className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Stock Ticker</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input 
                           placeholder="RELIANCE" 
-                          className="pl-9 h-10 text-sm font-semibold border-slate-200 uppercase focus:ring-0 focus:border-blue-500 transition-colors"
+                          className="pl-9 h-10 text-sm font-semibold border-border uppercase focus:ring-1 focus:ring-primary focus:border-primary transition-colors bg-background"
                           {...field} 
                         />
                       </div>
@@ -164,10 +164,10 @@ export default function Home() {
                 name="exchange"
                 render={({ field }) => (
                   <FormItem className="min-w-[140px] space-y-1.5">
-                    <FormLabel className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Exchange</FormLabel>
+                    <FormLabel className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Exchange</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger className="h-10 text-sm font-semibold border-slate-200">
+                        <SelectTrigger className="h-10 text-sm font-semibold border-border bg-background">
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
@@ -186,10 +186,10 @@ export default function Home() {
                 name="period"
                 render={({ field }) => (
                   <FormItem className="min-w-[140px] space-y-1.5">
-                    <FormLabel className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Analysis Period</FormLabel>
+                    <FormLabel className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Analysis Period</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger className="h-10 text-sm font-semibold border-slate-200">
+                        <SelectTrigger className="h-10 text-sm font-semibold border-border bg-background">
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
@@ -209,18 +209,18 @@ export default function Home() {
                 name="endDate"
                 render={({ field }) => (
                   <FormItem className="min-w-[180px] flex-1 space-y-1.5">
-                    <FormLabel className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Analysis End Date</FormLabel>
+                    <FormLabel className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Analysis End Date</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
                             variant={"outline"}
                             className={cn(
-                              "w-full h-10 justify-start text-left text-sm font-semibold border-slate-200 hover:bg-slate-50",
+                              "w-full h-10 justify-start text-left text-sm font-semibold border-border hover:bg-muted/50 transition-colors bg-background",
                               !field.value && "text-muted-foreground"
                             )}
                           >
-                            <CalendarIcon className="mr-2 h-4 w-4 text-slate-400" />
+                            <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
                             {field.value ? format(field.value, "PPP") : "Select date"}
                           </Button>
                         </FormControl>
@@ -242,7 +242,7 @@ export default function Home() {
 
               <Button 
                 type="submit" 
-                className="h-10 min-w-[140px] bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-widest transition-all active:scale-[0.98]"
+                className="h-10 min-w-[140px] bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs uppercase tracking-widest transition-all active:scale-[0.98]"
                 disabled={isPending}
               >
                 {isPending ? (
@@ -261,7 +261,7 @@ export default function Home() {
         {isPending && <FinanceFactCarousel />}
 
         {error && (
-          <div className="p-4 bg-red-50 border border-red-100 rounded text-red-600 text-sm font-medium">
+          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded text-destructive text-sm font-medium">
             Error: {error.message}
           </div>
         )}
@@ -271,9 +271,9 @@ export default function Home() {
         )}
 
         {!showResults && !isPending && !data && (
-          <div className="h-[300px] flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/30">
-            <TrendingUp className="h-12 w-12 text-slate-200 mb-4" />
-            <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">
+          <div className="h-[300px] flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl bg-muted/30">
+            <TrendingUp className="h-12 w-12 text-muted mb-4" />
+            <p className="text-muted-foreground text-sm font-bold uppercase tracking-widest">
               Awaiting Terminal Input
             </p>
           </div>

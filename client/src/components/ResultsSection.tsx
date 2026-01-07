@@ -141,7 +141,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                     <MetricTooltip title="Jensen's Alpha" definition="Excess return of the asset relative to the return predicted by CAPM. Positive alpha indicates outperformance." />
                   </div>
                   <div className="text-xl font-mono font-black text-slate-800">
-                    {data.alpha ? data.alpha.toFixed(4) : "N/A"}
+                    {data.alpha ? data.alpha.toFixed(6) : "N/A"}
                   </div>
                 </div>
                 <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
@@ -155,7 +155,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 </div>
                 <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
                   <div className="text-[9px] uppercase font-bold text-slate-400 tracking-widest flex items-center mb-1">
-                    R-Squared
+                    R^2
                     <MetricTooltip title="R² Coefficient" definition="Proportion of the asset's movement that can be explained by the benchmark index's movement." />
                   </div>
                   <div className="text-xl font-mono font-black text-slate-800">
@@ -212,7 +212,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                     <TableHead className="w-[20%] py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Industry</TableHead>
                     <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Beta</TableHead>
                     <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Volatility</TableHead>
-                    <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">R-Squared</TableHead>
+                    <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">R^2</TableHead>
                     <TableHead className="w-[14%] text-right pr-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Metric</TableHead>
                   </TableRow>
                 </TableHeader>

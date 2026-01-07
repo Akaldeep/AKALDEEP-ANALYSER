@@ -17,6 +17,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as ChartTooltip,
+  ResponsiveContainer,
+  Cell,
+  ReferenceLine
+} from 'recharts';
 
 interface ResultsSectionProps {
   data: CalculateBetaResponse;
@@ -55,10 +66,10 @@ export function ResultsSection({ data }: ResultsSectionProps) {
   };
 
   const getBetaStyle = (beta: number | null) => {
-    if (beta === null) return { color: "text-muted-foreground", icon: <Minus className="w-4 h-4" /> };
-    if (beta > 1.2) return { color: "text-destructive", icon: <TrendingUp className="w-4 h-4" /> };
-    if (beta < 0.8) return { color: "text-emerald-600 dark:text-emerald-500", icon: <TrendingDown className="w-4 h-4" /> };
-    return { color: "text-primary", icon: <Minus className="w-4 h-4 rotate-45" /> };
+    if (beta === null) return { color: "text-muted-foreground", icon: <Minus className="w-4 h-4" />, hex: "#94a3b8" };
+    if (beta > 1.2) return { color: "text-destructive", icon: <TrendingUp className="w-4 h-4" />, hex: "#ef4444" };
+    if (beta < 0.8) return { color: "text-emerald-600 dark:text-emerald-500", icon: <TrendingDown className="w-4 h-4" />, hex: "#059669" };
+    return { color: "text-primary", icon: <Minus className="w-4 h-4 rotate-45" />, hex: "#3b82f6" };
   };
 
   const getConfidenceStyle = (confidence?: string) => {
@@ -73,6 +84,18 @@ export function ResultsSection({ data }: ResultsSectionProps) {
   };
 
   const mainBetaStyle = getBetaStyle(data.beta);
+
+  // Prepare chart data
+  const chartData = [
+    { name: data.ticker.split('.')[0], beta: data.beta, isPrimary: true },
+    ...data.peers
+      .filter(p => p.beta !== null)
+      .map(p => ({
+        name: p.ticker.split('.')[0],
+        beta: p.beta as number,
+        isPrimary: false
+      }))
+  ].sort((a, b) => b.beta - a.beta);
 
   return (
     <motion.div 
@@ -141,7 +164,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                     <MetricTooltip title="Jensen's Alpha" definition="Excess return of the asset relative to the return predicted by CAPM. Positive alpha indicates outperformance." />
                   </div>
                   <div className="text-xl font-mono font-black text-foreground">
-                    {data.alpha ? data.alpha.toFixed(6) : "N/A"}
+                    {data.alpha !== undefined && data.alpha !== null ? data.alpha.toFixed(6) : "N/A"}
                   </div>
                 </div>
                 <div className="p-4 bg-muted/30 rounded-lg border border-border">
@@ -192,12 +215,91 @@ export function ResultsSection({ data }: ResultsSectionProps) {
         </div>
       </motion.div>
 
-      {/* Peer Comparison Table */}
+      {/* Beta Comparison Chart */}
+      <motion.div variants={item}>
+        <Card className="border border-border shadow-sm bg-card overflow-hidden transition-colors">
+          <CardHeader className="pb-2 border-b bg-muted/30 py-3 px-6">
+            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex justify-between items-center">
+              Beta Sensitivity Comparison
+              <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground bg-background border-border">
+                {data.period || "5Y"} Horizon
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="name" 
+                    angle={-45} 
+                    textAnchor="end" 
+                    interval={0} 
+                    height={70}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 700 }}
+                  />
+                  <YAxis 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 700 }}
+                    label={{ value: 'Beta Coefficient', angle: -90, position: 'insideLeft', style: { fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' } }}
+                  />
+                  <ChartTooltip 
+                    cursor={{ fill: 'hsl(var(--muted) / 0.2)' }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const d = payload[0].payload;
+                        return (
+                          <div className="bg-popover border border-border p-2 shadow-xl rounded-md">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">{d.name}</p>
+                            <p className="text-xs font-mono font-bold text-foreground">Beta: {d.beta.toFixed(3)}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <ReferenceLine y={1} stroke="hsl(var(--destructive) / 0.5)" strokeDasharray="3 3" label={{ position: 'right', value: 'Market', fill: 'hsl(var(--destructive))', fontSize: 10, fontWeight: 700 }} />
+                  <Bar dataKey="beta" radius={[4, 4, 0, 0]} barSize={40}>
+                    {chartData.map((entry, index) => {
+                      const style = getBetaStyle(entry.beta);
+                      return (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={entry.isPrimary ? 'hsl(var(--primary))' : style.hex} 
+                          fillOpacity={entry.isPrimary ? 1 : 0.6}
+                          stroke={entry.isPrimary ? 'hsl(var(--primary))' : style.hex}
+                          strokeWidth={entry.isPrimary ? 2 : 0}
+                        />
+                      );
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-6">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-primary rounded-sm" />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Subject Asset</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-destructive/60 rounded-sm" />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">High Volatility (&gt;1.2)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-emerald-600/60 rounded-sm" />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Defensive (&lt;0.8)</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Peer Company Analysis Table */}
       <motion.div variants={item}>
         <Card className="overflow-hidden shadow-sm border-border bg-card transition-colors">
           <CardHeader className="bg-muted/30 border-b py-3 px-6">
             <div className="flex items-center justify-between gap-4">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Comparable Asset Universe</CardTitle>
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Peer Company Analysis</CardTitle>
               <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground bg-background border-border">
                 Peer Relative Ranking
               </Badge>

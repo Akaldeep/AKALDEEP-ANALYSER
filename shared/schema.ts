@@ -51,6 +51,10 @@ export const peerBetaSchema = z.object({
     ticker: z.string(),
     name: z.string(),
     beta: z.number().nullable(),
+    volatility: z.number().nullable(),
+    alpha: z.number().nullable(),
+    correlation: z.number().nullable(),
+    rSquared: z.number().nullable(),
     sector: z.string().optional(),
     similarityScore: z.number().optional(),
     confidence: z.enum(["High", "Medium", "Fallback"]).optional(),
@@ -64,6 +68,10 @@ export const calculateBetaResponseSchema = z.object({
     name: z.string().optional(),
     marketIndex: z.string(),
     beta: z.number(),
+    volatility: z.number().optional(),
+    alpha: z.number().optional(),
+    correlation: z.number().optional(),
+    rSquared: z.number().optional(),
     period: z.string().optional(),
     peers: z.array(peerBetaSchema)
 });

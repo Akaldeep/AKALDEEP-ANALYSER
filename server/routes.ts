@@ -66,8 +66,8 @@ function calculateKeywordOverlap(keywordsA: string[], keywordsB: string[]): numb
   return (intersection.length / 5) * 100;
 }
 
-// Helper to calculate Beta using return regression
-function calculateBetaValue(stockPrices: number[], marketPrices: number[]): number | null {
+// Helper to calculate financial metrics
+function calculateFinancialMetrics(stockPrices: number[], marketPrices: number[]) {
   if (stockPrices.length !== marketPrices.length || stockPrices.length < 2) return null;
 
   const stockReturns: number[] = [];
@@ -88,14 +88,32 @@ function calculateBetaValue(stockPrices: number[], marketPrices: number[]): numb
 
   let covariance = 0;
   let varianceMarket = 0;
+  let varianceStock = 0;
 
   for (let i = 0; i < n; i++) {
-    covariance += (stockReturns[i] - meanStock) * (marketReturns[i] - meanMarket);
-    varianceMarket += (marketReturns[i] - meanMarket) ** 2;
+    const diffS = stockReturns[i] - meanStock;
+    const diffM = marketReturns[i] - meanMarket;
+    covariance += diffS * diffM;
+    varianceMarket += diffM ** 2;
+    varianceStock += diffS ** 2;
   }
 
-  if (varianceMarket === 0) return null;
-  return covariance / varianceMarket;
+  if (varianceMarket === 0 || varianceStock === 0) return null;
+
+  const beta = covariance / varianceMarket;
+  const alpha = meanStock - (beta * meanMarket);
+  const correlation = covariance / (Math.sqrt(varianceStock) * Math.sqrt(varianceMarket));
+  const rSquared = correlation ** 2;
+  const standardDeviation = Math.sqrt(varianceStock / (n - 1));
+  const volatility = standardDeviation * Math.sqrt(252);
+
+  return {
+    beta,
+    alpha,
+    correlation,
+    rSquared,
+    volatility
+  };
 }
 
 async function fetchHistoricalData(ticker: string, startDate: string, endDate: string) {
@@ -295,9 +313,9 @@ export async function registerRoutes(
         }
       });
 
-      const beta = calculateBetaValue(alignedStockPrices, alignedMarketPrices);
-      if (beta === null) {
-        return res.status(400).json({ message: "Insufficient data points to calculate beta" });
+      const metrics = calculateFinancialMetrics(alignedStockPrices, alignedMarketPrices);
+      if (!metrics) {
+        return res.status(400).json({ message: "Insufficient data points to calculate metrics" });
       }
 
       const peerSymbols = await getPeers(fullTicker);
@@ -355,8 +373,17 @@ export async function registerRoutes(
               return null;
             }
 
-            const pBeta = calculateBetaValue(pPrices, mPrices);
-            return { ticker: peerSymbol, name: pName, beta: pBeta, sector: peer.sector };
+            const pMetrics = calculateFinancialMetrics(pPrices, mPrices);
+            return { 
+              ticker: peerSymbol, 
+              name: pName, 
+              beta: pMetrics?.beta ?? null,
+              volatility: pMetrics?.volatility ?? null,
+              alpha: pMetrics?.alpha ?? null,
+              correlation: pMetrics?.correlation ?? null,
+              rSquared: pMetrics?.rSquared ?? null,
+              sector: peer.sector 
+            };
           } catch (e) {
             console.error(`Error calculating beta for peer ${peer.slug}:`, e);
             return null;
@@ -371,7 +398,7 @@ export async function registerRoutes(
           exchange,
           startDate,
           endDate,
-          beta,
+          beta: metrics.beta,
           peers: finalPeers
       });
 
@@ -379,7 +406,11 @@ export async function registerRoutes(
           ticker: fullTicker,
           name: companyName,
           marketIndex: marketTicker === "^NSEI" ? "NIFTY 50" : "BSE SENSEX",
-          beta,
+          beta: metrics.beta,
+          volatility: metrics.volatility,
+          alpha: metrics.alpha,
+          correlation: metrics.correlation,
+          rSquared: metrics.rSquared,
           period: period || "5Y",
           peers: finalPeers
       };

@@ -9,23 +9,34 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { AlertCircle, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { AlertCircle, TrendingUp, TrendingDown, Minus, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ResultsSectionProps {
-  data: CalculateBetaResponse & {
-    peers: Array<{
-      ticker: string;
-      name: string;
-      beta: number | null;
-      sector?: string;
-      similarityScore?: number;
-      confidence?: string;
-      error?: string;
-    }>;
-    period?: string;
-  };
+  data: CalculateBetaResponse;
 }
+
+const MetricTooltip = ({ title, definition }: { title: string; definition: string }) => (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button className="inline-flex items-center ml-1 text-slate-400 hover:text-slate-600 transition-colors">
+          <Info className="w-3 h-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs p-3 bg-slate-900 text-white border-none shadow-xl">
+        <p className="text-[11px] font-bold uppercase mb-1 tracking-wider text-blue-400">{title}</p>
+        <p className="text-[10px] leading-relaxed text-slate-300">{definition}</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
 export function ResultsSection({ data }: ResultsSectionProps) {
   const container = {
@@ -102,8 +113,9 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   </div>
                   <div className="h-10 w-px bg-slate-200 hidden md:block" />
                   <div className="flex flex-col">
-                    <span className="text-[9px] uppercase font-bold text-slate-400 tracking-widest">
+                    <span className="text-[9px] uppercase font-bold text-slate-400 tracking-widest flex items-center">
                       {data.period || "5Y"} Daily Beta
+                      <MetricTooltip title="Beta" definition="Measures stock volatility relative to the market. Beta > 1 is more volatile than market; Beta < 1 is less volatile." />
                     </span>
                     <span className={`text-sm font-black uppercase tracking-tight ${mainBetaStyle.color} flex items-center gap-1`}>
                       {data.beta > 1.2 ? "High Aggression" : data.beta < 0.8 ? "Defensive" : "Market Neutral"}
@@ -112,18 +124,43 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 </div>
               </div>
               
-              <div className="mt-6 flex flex-col gap-4">
-                <div className="p-4 bg-blue-50/30 border border-blue-100/50 rounded-lg text-xs text-slate-600 leading-relaxed font-medium">
-                  <span className="font-bold text-slate-900 uppercase text-[10px] mr-2 tracking-wider">Market Sensitivity:</span> 
-                  An analysis coefficient of <span className="font-bold text-blue-700">{data.beta.toFixed(3)}</span> indicates that for every 1.00% fluctuation in the <span className="font-bold text-slate-900">{data.marketIndex}</span>, this asset is statistically projected to move by <span className="font-bold text-blue-700">{data.beta.toFixed(3)}%</span> over a <span className="font-bold text-slate-900">{data.period || "5Y"}</span> horizon.
+              {/* Secondary Metrics Grid */}
+              <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="text-[9px] uppercase font-bold text-slate-400 tracking-widest flex items-center mb-1">
+                    Volatility
+                    <MetricTooltip title="Annualized Volatility" definition="Standard deviation of daily returns multiplied by √252. Represents the asset's annualized price movement risk." />
+                  </div>
+                  <div className="text-xl font-mono font-black text-slate-800">
+                    {data.volatility ? `${(data.volatility * 100).toFixed(2)}%` : "N/A"}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 px-1">
-                  <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-slate-400 bg-white border-slate-200">
-                    {data.period || "5Y"} Historical Returns
-                  </Badge>
-                  <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-slate-400 bg-white border-slate-200">
-                    Source: Yahoo Finance Terminal
-                  </Badge>
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="text-[9px] uppercase font-bold text-slate-400 tracking-widest flex items-center mb-1">
+                    Alpha
+                    <MetricTooltip title="Jensen's Alpha" definition="Excess return of the asset relative to the return predicted by CAPM. Positive alpha indicates outperformance." />
+                  </div>
+                  <div className="text-xl font-mono font-black text-slate-800">
+                    {data.alpha ? data.alpha.toFixed(4) : "N/A"}
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="text-[9px] uppercase font-bold text-slate-400 tracking-widest flex items-center mb-1">
+                    Correlation
+                    <MetricTooltip title="Correlation" definition="Statistical measure (from -1 to 1) of how closely the asset price moves in relation to the benchmark index." />
+                  </div>
+                  <div className="text-xl font-mono font-black text-slate-800">
+                    {data.correlation ? data.correlation.toFixed(3) : "N/A"}
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="text-[9px] uppercase font-bold text-slate-400 tracking-widest flex items-center mb-1">
+                    R-Squared
+                    <MetricTooltip title="R² Coefficient" definition="Proportion of the asset's movement that can be explained by the benchmark index's movement." />
+                  </div>
+                  <div className="text-xl font-mono font-black text-slate-800">
+                    {data.rSquared ? data.rSquared.toFixed(3) : "N/A"}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -171,10 +208,12 @@ export function ResultsSection({ data }: ResultsSectionProps) {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent bg-slate-50/30">
-                    <TableHead className="w-[35%] pl-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Asset Name</TableHead>
-                    <TableHead className="py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Industry Segment</TableHead>
-                    <TableHead className="text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Beta ({data.period || "5Y"})</TableHead>
-                    <TableHead className="text-right pr-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Risk Metric</TableHead>
+                    <TableHead className="w-[25%] pl-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Asset Name</TableHead>
+                    <TableHead className="py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Industry</TableHead>
+                    <TableHead className="text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Beta</TableHead>
+                    <TableHead className="text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Volatility</TableHead>
+                    <TableHead className="text-right py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">R-Squared</TableHead>
+                    <TableHead className="text-right pr-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Metric</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -194,47 +233,41 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                         <TableCell className="py-4">
                           <div className="flex flex-col gap-1.5">
                             <div className="flex flex-col">
-                              <span className="text-[10px] text-slate-900 font-black uppercase tracking-tight truncate max-w-[200px]">
+                              <span className="text-[10px] text-slate-900 font-black uppercase tracking-tight truncate max-w-[150px]">
                                 {industry || sector || "Unknown"}
                               </span>
                               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
                                 {industry ? sector : "Institutional"}
                               </span>
                             </div>
-                            {peer.confidence && (
-                              <Badge variant="outline" className={`w-fit text-[8px] h-3.5 px-1 py-0 uppercase font-black tracking-tighter border shadow-none ${getConfidenceStyle(peer.confidence)}`}>
-                                {peer.confidence} MATCH
-                              </Badge>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right py-4">
-                          {peer.beta !== null ? (
-                            <div className="flex flex-col items-end gap-0.5">
-                              <span className={`text-sm font-mono font-black ${style.color}`}>
-                                {peer.beta.toFixed(3)}
-                              </span>
-                              {peer.similarityScore !== undefined && (
-                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
-                                  {peer.similarityScore}% SIMILAR
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-300 font-mono text-sm">-</span>
-                          )}
+                          <span className={`text-sm font-mono font-black ${style.color}`}>
+                            {peer.beta !== null ? peer.beta.toFixed(3) : "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right py-4">
+                          <span className="text-xs font-mono font-bold text-slate-600">
+                            {peer.volatility !== null ? `${(peer.volatility * 100).toFixed(1)}%` : "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right py-4">
+                          <span className="text-xs font-mono font-bold text-slate-600">
+                            {peer.rSquared !== null ? peer.rSquared.toFixed(3) : "-"}
+                          </span>
                         </TableCell>
                         <TableCell className="text-right pr-6 py-4">
                           {peer.error ? (
                             <div className="flex items-center justify-end gap-1 text-amber-500 font-bold text-[9px] uppercase tracking-tighter">
                               <AlertCircle className="w-2.5 h-2.5" />
-                              <span>ERR_DATA</span>
+                              <span>ERR</span>
                             </div>
                           ) : (
                             <div className="flex items-center justify-end gap-2">
                                {style.icon}
                                <span className={`text-[9px] font-black uppercase tracking-tighter ${style.color}`}>
-                                 {peer.beta! > 1.2 ? "High Risk" : peer.beta! < 0.8 ? "Stable" : "Balanced"}
+                                 {peer.beta! > 1.2 ? "Aggressive" : peer.beta! < 0.8 ? "Stable" : "Balanced"}
                                </span>
                             </div>
                           )}
@@ -242,13 +275,6 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                       </TableRow>
                     );
                   })}
-                  {data.peers.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="h-24 text-center">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No comparable assets identified in this universe</span>
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
             </div>

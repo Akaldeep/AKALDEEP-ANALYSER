@@ -136,21 +136,28 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
     const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
     if (!summary?.assetProfile) return [];
 
-    const targetIndustry = summary.assetProfile.industry;
-    const targetSector = summary.assetProfile.sector;
+    const targetIndustry = summary.assetProfile.industry || "";
+    const targetSector = summary.assetProfile.sector || "";
     
+    if (!targetIndustry) {
+      console.log(`No industry found for ${ticker}, falling back to sector search`);
+    }
+
     // 1. Get recommendations from Yahoo
     const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
     let candidateSymbols = recommendations?.recommendedSymbols?.map(r => r.symbol) || [];
 
     // 2. Search for more companies in the same industry if we have few candidates
-    if (candidateSymbols.length < 10) {
+    if (candidateSymbols.length < 10 && targetIndustry) {
+      console.log(`Searching for peers in industry: ${targetIndustry}`);
       const searchResults = await yahooFinance.search(targetIndustry, { 
-        quotesCount: 20,
-        newsCount: 0
+        quotesCount: 20
       });
       const additionalSymbols = searchResults.quotes
-        .filter(q => (q as any).symbol && ((q as any).symbol.endsWith('.NS') || (q as any).symbol.endsWith('.BO')))
+        .filter(q => {
+          const s = (q as any).symbol;
+          return s && (s.endsWith('.NS') || s.endsWith('.BO'));
+        })
         .map(q => (q as any).symbol);
       candidateSymbols = Array.from(new Set([...candidateSymbols, ...additionalSymbols]));
     }
@@ -168,14 +175,16 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
       if (!s?.assetProfile || symbol === ticker) return null;
       
       // Strict Industry Match
-      const isSameIndustry = s.assetProfile.industry === targetIndustry;
-      if (!isSameIndustry) return null;
+      const isSameIndustry = targetIndustry && s.assetProfile.industry === targetIndustry;
+      const isSameSector = targetSector && s.assetProfile.sector === targetSector;
+      
+      if (!isSameIndustry && !isSameSector) return null;
 
       return {
         slug: symbol,
         sector: `${s.assetProfile.sector || 'Unknown'} > ${s.assetProfile.industry || 'Unknown'}`,
         marketCap: s.summaryDetail?.marketCap || 0,
-        similarityScore: 100
+        similarityScore: isSameIndustry ? 100 : 70
       };
     }).filter((p): p is any => p !== null);
 

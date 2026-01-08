@@ -7,6 +7,14 @@ import YahooFinance from 'yahoo-finance2';
 import * as cheerio from 'cheerio';
 import OpenAI from "openai";
 
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Load NIFTY 500 mapping
+const nifty500: { ticker: string; name: string; industry: string }[] = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), 'server/nifty500.json'), 'utf8')
+);
+
 const yahooFinance = new YahooFinance();
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -133,109 +141,61 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
 
 async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number; similarityScore?: number; keywords?: string[] }[]> {
   try {
-    const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
-    if (!summary) return [];
-
-    const targetSector = summary.assetProfile?.sector;
-    const targetIndustry = summary.assetProfile?.industry;
-    const targetSummary = summary.assetProfile?.longBusinessSummary || "";
-    const useAI = targetSummary.length >= 200;
-
-    let baseProfile = await storage.getCompanyProfile(ticker);
-    if (useAI && !baseProfile) {
-      const [embedding, keywords] = await Promise.all([
-        getEmbedding(targetSummary),
-        generateKeywords(targetSummary)
-      ]);
-      baseProfile = await storage.upsertCompanyProfile({ ticker, keywords, embedding });
-    }
-
-    const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
-    const recSymbols = recommendations?.recommendedSymbols?.map(r => r.symbol) || [];
+    const cleanTicker = ticker.split('.')[0].toUpperCase();
+    const targetCompany = nifty500.find(c => c.ticker === cleanTicker);
     
-    // Tiered Candidate Universe Logic
-    const fetchRecs = async (symbols: string[]) => {
-      return Promise.all(
-        symbols.map(s => yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
-      );
-    };
-
-    const recSummaries = await fetchRecs(recSymbols);
-    
-    const evaluatePeers = async (summaries: any[], currentSymbols: string[], minThreshold: number) => {
-      const scored = await Promise.all(summaries.map(async (s, index) => {
-        const peerTicker = currentSymbols[index];
+    if (!targetCompany) {
+      // Fallback to old behavior if not in NIFTY 500
+      console.log(`Ticker ${cleanTicker} not in NIFTY 500, falling back to recommendation API`);
+      const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
+      const recSymbols = recommendations?.recommendedSymbols?.map(r => r.symbol) || [];
+      const fetchRecs = async (symbols: string[]) => {
+        return Promise.all(
+          symbols.map(s => yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
+        );
+      };
+      const recSummaries = await fetchRecs(recSymbols);
+      
+      const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile'] }).catch(() => null);
+      const targetIndustry = summary?.assetProfile?.industry;
+      
+      const scored = recSummaries.map((s, index) => {
+        const peerTicker = recSymbols[index];
         if (!s?.assetProfile || peerTicker === ticker) return null;
-
-        const isSameSector = s.assetProfile.sector === targetSector;
         const isSameIndustry = s.assetProfile.industry === targetIndustry;
-        
-        // Strictness based on tiers will be handled by the caller filtering recSummaries
-        const peerSummary = s.assetProfile.longBusinessSummary || "";
-        const peerUseAI = useAI && peerSummary.length >= 200;
-
-        let combinedScore = 0;
-        let keywords: string[] = [];
-
-        if (peerUseAI && baseProfile) {
-          let peerProfile = await storage.getCompanyProfile(peerTicker);
-          if (!peerProfile) {
-            keywords = await generateKeywords(peerSummary);
-            peerProfile = await storage.upsertCompanyProfile({ 
-              ticker: peerTicker, 
-              keywords, 
-              embedding: new Array(1536).fill(0) 
-            });
-          } else {
-            keywords = peerProfile.keywords;
-          }
-          const keywordOverlap = calculateKeywordOverlap(baseProfile.keywords, peerProfile.keywords);
-          combinedScore = keywordOverlap > 0 ? (30 + (keywordOverlap * 0.7)) : 10;
-        } else {
-          // Fallback scoring for weak summaries
-          combinedScore = isSameIndustry ? 45 : (isSameSector ? 25 : 10);
-        }
-
-        if (combinedScore < minThreshold) return null;
+        if (!isSameIndustry) return null;
 
         return {
           slug: peerTicker,
           sector: `${s.assetProfile.sector || 'Unknown'} > ${s.assetProfile.industry || 'Unknown'}`,
           marketCap: s.summaryDetail?.marketCap || 0,
-          similarityScore: Math.round(combinedScore),
-          keywords: keywords,
-          confidence: combinedScore >= 50 ? "High" : combinedScore >= 30 ? "Medium" : "Fallback"
+          similarityScore: 100
         };
-      }));
-      return scored.filter((p): p is any => p !== null);
-    };
-
-    // Tiers and Dynamic Thresholds
-    const thresholds = [50, 40, 30];
-    for (const threshold of thresholds) {
-      // Tier 1: Same Industry
-      const industryPeers = await evaluatePeers(
-        recSummaries.filter(s => s?.assetProfile?.industry === targetIndustry),
-        recSymbols.filter((_, i) => recSummaries[i]?.assetProfile?.industry === targetIndustry),
-        threshold
-      );
-      if (industryPeers.length >= 3) return industryPeers.sort((a, b) => b.similarityScore - a.similarityScore).slice(0, 5);
-
-      // Tier 2: Same Sector
-      const sectorPeers = await evaluatePeers(
-        recSummaries.filter(s => s?.assetProfile?.sector === targetSector),
-        recSymbols.filter((_, i) => recSummaries[i]?.assetProfile?.sector === targetSector),
-        threshold
-      );
-      if (sectorPeers.length >= 3) return sectorPeers.sort((a, b) => b.similarityScore - a.similarityScore).slice(0, 5);
+      }).filter((p): p is any => p !== null);
+      
+      return scored.slice(0, 5);
     }
 
-    // Final Fallback: Best available from all recs at lowest threshold
-    const finalFallback = await evaluatePeers(recSummaries, recSymbols, 0);
-    return finalFallback.sort((a, b) => b.similarityScore - a.similarityScore).slice(0, 5);
+    const industryPeers = nifty500
+      .filter(c => c.industry === targetCompany.industry && c.ticker !== cleanTicker)
+      .slice(0, 5);
+
+    const peerSummaries = await Promise.all(
+      industryPeers.map(p => yahooFinance.quoteSummary(p.ticker + ".NS", { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
+    );
+
+    return industryPeers.map((p, i) => {
+      const s = peerSummaries[i];
+      return {
+        slug: p.ticker,
+        sector: targetCompany.industry,
+        marketCap: s?.summaryDetail?.marketCap || 0,
+        similarityScore: 100
+      };
+    });
 
   } catch (error) {
-    console.error("Error fetching similarity-based peers:", error);
+    console.error("Error fetching industry peers:", error);
     return [];
   }
 }

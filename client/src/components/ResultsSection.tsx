@@ -221,11 +221,12 @@ export function ResultsSection({ data }: ResultsSectionProps) {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent bg-muted/20">
-                    <TableHead className="w-[30%] pl-6 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Asset Name</TableHead>
-                    <TableHead className="w-[20%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Industry</TableHead>
-                    <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Beta</TableHead>
-                    <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Volatility</TableHead>
-                    <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">R^2</TableHead>
+                    <TableHead className="w-[18%] pl-6 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Asset Name</TableHead>
+                    <TableHead className="w-[18%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Industry</TableHead>
+                    <TableHead className="w-[14%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mkt Cap (Cr)</TableHead>
+                    <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Beta</TableHead>
+                    <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Volatility</TableHead>
+                    <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">R^2</TableHead>
                     <TableHead className="w-[14%] text-right pr-6 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Metric</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -254,6 +255,11 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                               </span>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell className="text-right py-4">
+                          <span className="text-xs font-mono font-bold text-muted-foreground">
+                            {peer.marketCap ? `₹${(peer.marketCap / 10000000).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : "-"}
+                          </span>
                         </TableCell>
                         <TableCell className="text-right py-4">
                           <span className={`text-sm font-mono font-black ${style.color}`}>

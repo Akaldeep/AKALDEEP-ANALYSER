@@ -55,6 +55,7 @@ export const peerBetaSchema = z.object({
     alpha: z.number().nullable(),
     correlation: z.number().nullable(),
     rSquared: z.number().nullable(),
+    marketCap: z.number().optional(),
     sector: z.string().optional(),
     similarityScore: z.number().optional(),
     confidence: z.enum(["High", "Medium", "Fallback"]).optional(),

@@ -259,10 +259,10 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
       };
     }).filter((p): p is any => p !== null);
 
-    // Sort by Market Cap proximity and return top 5
+    // Sort by Market Cap proximity and return top 10
     return verifiedPeers
       .sort((a, b) => a.capDiff - b.capDiff)
-      .slice(0, 5);
+      .slice(0, 10);
 
   } catch (error) {
     console.error("Error fetching live industry peers:", error);
@@ -412,6 +412,7 @@ export async function registerRoutes(
               alpha: pMetrics?.alpha ?? null,
               correlation: pMetrics?.correlation ?? null,
               rSquared: pMetrics?.rSquared ?? null,
+              marketCap: peer.marketCap,
               sector: peer.sector 
             };
           } catch (e) {

@@ -150,12 +150,15 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
     // 2. Search for more companies in the same industry if we have few candidates
     if (candidateSymbols.length < 10 && targetIndustry) {
       console.log(`Searching for peers in industry: ${targetIndustry}`);
+      // Groww's industry names might differ slightly from Yahoo's, so we search both
       const searchResults = await yahooFinance.search(targetIndustry, { 
         quotesCount: 20
       });
+      
       const additionalSymbols = searchResults.quotes
         .filter(q => {
           const s = (q as any).symbol;
+          // Ensure we are looking at Indian markets
           return s && (s.endsWith('.NS') || s.endsWith('.BO'));
         })
         .map(q => (q as any).symbol);

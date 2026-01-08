@@ -7,14 +7,6 @@ import YahooFinance from 'yahoo-finance2';
 import * as cheerio from 'cheerio';
 import OpenAI from "openai";
 
-import * as fs from 'fs';
-import * as path from 'path';
-
-// Load NIFTY 500 mapping
-const nifty500: { ticker: string; name: string; industry: string }[] = JSON.parse(
-  fs.readFileSync(path.join(process.cwd(), 'server/nifty500.json'), 'utf8')
-);
-
 const yahooFinance = new YahooFinance();
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -141,61 +133,59 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
 
 async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number; similarityScore?: number; keywords?: string[] }[]> {
   try {
-    const cleanTicker = ticker.split('.')[0].toUpperCase();
-    const targetCompany = nifty500.find(c => c.ticker === cleanTicker);
-    
-    if (!targetCompany) {
-      // Fallback to old behavior if not in NIFTY 500
-      console.log(`Ticker ${cleanTicker} not in NIFTY 500, falling back to recommendation API`);
-      const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
-      const recSymbols = recommendations?.recommendedSymbols?.map(r => r.symbol) || [];
-      const fetchRecs = async (symbols: string[]) => {
-        return Promise.all(
-          symbols.map(s => yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
-        );
-      };
-      const recSummaries = await fetchRecs(recSymbols);
-      
-      const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile'] }).catch(() => null);
-      const targetIndustry = summary?.assetProfile?.industry;
-      
-      const scored = recSummaries.map((s, index) => {
-        const peerTicker = recSymbols[index];
-        if (!s?.assetProfile || peerTicker === ticker) return null;
-        const isSameIndustry = s.assetProfile.industry === targetIndustry;
-        if (!isSameIndustry) return null;
+    const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
+    if (!summary?.assetProfile) return [];
 
-        return {
-          slug: peerTicker,
-          sector: `${s.assetProfile.sector || 'Unknown'} > ${s.assetProfile.industry || 'Unknown'}`,
-          marketCap: s.summaryDetail?.marketCap || 0,
-          similarityScore: 100
-        };
-      }).filter((p): p is any => p !== null);
-      
-      return scored.slice(0, 5);
+    const targetIndustry = summary.assetProfile.industry;
+    const targetSector = summary.assetProfile.sector;
+    
+    // 1. Get recommendations from Yahoo
+    const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
+    let candidateSymbols = recommendations?.recommendedSymbols?.map(r => r.symbol) || [];
+
+    // 2. Search for more companies in the same industry if we have few candidates
+    if (candidateSymbols.length < 10) {
+      const searchResults = await yahooFinance.search(targetIndustry, { 
+        quotesCount: 20,
+        newsCount: 0
+      });
+      const additionalSymbols = searchResults.quotes
+        .filter(q => (q as any).symbol && ((q as any).symbol.endsWith('.NS') || (q as any).symbol.endsWith('.BO')))
+        .map(q => (q as any).symbol);
+      candidateSymbols = Array.from(new Set([...candidateSymbols, ...additionalSymbols]));
     }
 
-    const industryPeers = nifty500
-      .filter(c => c.industry === targetCompany.industry && c.ticker !== cleanTicker)
-      .slice(0, 5);
-
+    // 3. Batch fetch summaries to verify industry
     const peerSummaries = await Promise.all(
-      industryPeers.map(p => yahooFinance.quoteSummary(p.ticker + ".NS", { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null))
+      candidateSymbols.map(s => 
+        yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] })
+          .catch(() => null)
+      )
     );
 
-    return industryPeers.map((p, i) => {
+    const verifiedPeers = candidateSymbols.map((symbol, i) => {
       const s = peerSummaries[i];
+      if (!s?.assetProfile || symbol === ticker) return null;
+      
+      // Strict Industry Match
+      const isSameIndustry = s.assetProfile.industry === targetIndustry;
+      if (!isSameIndustry) return null;
+
       return {
-        slug: p.ticker,
-        sector: targetCompany.industry,
-        marketCap: s?.summaryDetail?.marketCap || 0,
+        slug: symbol,
+        sector: `${s.assetProfile.sector || 'Unknown'} > ${s.assetProfile.industry || 'Unknown'}`,
+        marketCap: s.summaryDetail?.marketCap || 0,
         similarityScore: 100
       };
-    });
+    }).filter((p): p is any => p !== null);
+
+    // Sort by Market Cap as a proxy for relevance
+    return verifiedPeers
+      .sort((a, b) => b.marketCap - a.marketCap)
+      .slice(0, 5);
 
   } catch (error) {
-    console.error("Error fetching industry peers:", error);
+    console.error("Error fetching live industry peers:", error);
     return [];
   }
 }

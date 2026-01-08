@@ -6,12 +6,64 @@ import { z } from "zod";
 import YahooFinance from 'yahoo-finance2';
 import * as cheerio from 'cheerio';
 import OpenAI from "openai";
+import * as xlsx from 'xlsx/xlsx.mjs';
+import * as fs from 'fs';
+import path from 'path';
+
+// Use a dynamic import or require style for xlsx if ESM issues persist, 
+// but try standard named imports first as xlsx has mixed support.
+import pkg from 'xlsx';
+const { readFile, utils } = pkg;
 
 const yahooFinance = new YahooFinance();
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+// Load and parse the Excel file
+let industryList: { symbol: string; name: string; industry: string }[] = [];
+
+try {
+  const filePath = path.resolve(process.cwd(), 'attached_assets', 'INDIAN_COMPANIES_LIST_INDUSTRY_WISE_1767863645829.xlsx');
+  if (fs.existsSync(filePath)) {
+    const workbook = readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    // Set header: 1 to get raw array of arrays
+    const rawData: any[][] = utils.sheet_to_json(sheet, { header: 1 });
+    
+    if (rawData.length > 0) {
+      // Print first row to debug
+      console.log('Excel Headers:', JSON.stringify(rawData[0]));
+      const headers = rawData[0].map(h => String(h || '').trim().toLowerCase());
+      
+      // Map based on: ["Company Name","Exchange:Ticker","Industry Group","Primary Sector","SIC Code","Country","Broad Group","Sub Group"]
+      const nameIdx = headers.findIndex(h => h.includes('company') || h === 'name');
+      const tickerIdx = headers.findIndex(h => h.includes('ticker') || h === 'symbol');
+      const industryIdx = headers.findIndex(h => h === 'industry group' || h === 'industry' || h === 'sector');
+      
+      console.log(`Indices - Symbol: ${tickerIdx}, Name: ${nameIdx}, Industry: ${industryIdx}`);
+      
+      if (tickerIdx !== -1) {
+        industryList = rawData.slice(1).map(row => {
+          const rawTicker = String(row[tickerIdx] || '').trim();
+          // Extract symbol from "Exchange:Ticker" format like "NSE:TCS"
+          const symbol = rawTicker.includes(':') ? rawTicker.split(':')[1] : rawTicker;
+          
+          return {
+            symbol: symbol,
+            name: nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '',
+            industry: industryIdx !== -1 ? String(row[industryIdx] || '').trim() : ''
+          };
+        }).filter(item => item.symbol);
+      }
+    }
+    console.log(`Loaded ${industryList.length} companies from Excel list using detected headers`);
+  }
+} catch (error) {
+  console.error("Error loading Excel file:", error);
+}
 
 // Helper to compute cosine similarity between two vectors
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
@@ -138,19 +190,32 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
 
     const targetIndustry = summary.assetProfile.industry || "";
     const targetSector = summary.assetProfile.sector || "";
+    const targetMarketCap = summary.summaryDetail?.marketCap || 0;
     
-    if (!targetIndustry) {
-      console.log(`No industry found for ${ticker}, falling back to sector search`);
+    const tickerBase = ticker.split('.')[0];
+    const excelMatch = industryList.find(i => i.symbol === tickerBase);
+    const excelIndustry = excelMatch?.industry;
+
+    let candidateSymbols: string[] = [];
+
+    // 1. Get initial recommendations from Yahoo
+    const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
+    candidateSymbols = recommendations?.recommendedSymbols?.map(r => r.symbol) || [];
+
+    // 2. Add candidates from Excel list matching industry
+    if (excelIndustry) {
+      const industryPeers = industryList
+        .filter(item => item.industry === excelIndustry && item.symbol !== tickerBase)
+        .map(item => {
+          // Add suffix based on target ticker
+          const suffix = ticker.includes('.') ? ticker.split('.')[1] : 'NS';
+          return `${item.symbol}.${suffix}`;
+        });
+      candidateSymbols = Array.from(new Set([...candidateSymbols, ...industryPeers]));
     }
 
-    // 1. Get recommendations from Yahoo
-    const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
-    let candidateSymbols = recommendations?.recommendedSymbols?.map(r => r.symbol) || [];
-
-    // 2. Search for more companies in the same industry if we have few candidates
+    // 3. Search Yahoo if we still have few candidates
     if (candidateSymbols.length < 10 && targetIndustry) {
-      console.log(`Searching for peers in industry: ${targetIndustry}`);
-      // Groww's industry names might differ slightly from Yahoo's, so we search both
       const searchResults = await yahooFinance.search(targetIndustry, { 
         quotesCount: 20
       });
@@ -158,14 +223,13 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
       const additionalSymbols = searchResults.quotes
         .filter(q => {
           const s = (q as any).symbol;
-          // Ensure we are looking at Indian markets
           return s && (s.endsWith('.NS') || s.endsWith('.BO'));
         })
         .map(q => (q as any).symbol);
       candidateSymbols = Array.from(new Set([...candidateSymbols, ...additionalSymbols]));
     }
 
-    // 3. Batch fetch summaries to verify industry
+    // 4. Batch fetch summaries to verify industry and get Market Cap
     const peerSummaries = await Promise.all(
       candidateSymbols.map(s => 
         yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] })
@@ -177,23 +241,27 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
       const s = peerSummaries[i];
       if (!s?.assetProfile || symbol === ticker) return null;
       
-      // Strict Industry Match
-      const isSameIndustry = targetIndustry && s.assetProfile.industry === targetIndustry;
-      const isSameSector = targetSector && s.assetProfile.sector === targetSector;
+      const isSameIndustry = (targetIndustry && s.assetProfile.industry === targetIndustry) || 
+                            (excelIndustry && industryList.find(item => item.symbol === symbol.split('.')[0])?.industry === excelIndustry);
       
-      if (!isSameIndustry && !isSameSector) return null;
+      if (!isSameIndustry) return null;
+
+      const peerMarketCap = s.summaryDetail?.marketCap || 0;
+      // Calculate closeness to target market cap
+      const capDiff = targetMarketCap > 0 ? Math.abs(peerMarketCap - targetMarketCap) / targetMarketCap : 0;
 
       return {
         slug: symbol,
         sector: `${s.assetProfile.sector || 'Unknown'} > ${s.assetProfile.industry || 'Unknown'}`,
-        marketCap: s.summaryDetail?.marketCap || 0,
+        marketCap: peerMarketCap,
+        capDiff: capDiff,
         similarityScore: isSameIndustry ? 100 : 70
       };
     }).filter((p): p is any => p !== null);
 
-    // Sort by Market Cap as a proxy for relevance
+    // Sort by Market Cap proximity and return top 5
     return verifiedPeers
-      .sort((a, b) => b.marketCap - a.marketCap)
+      .sort((a, b) => a.capDiff - b.capDiff)
       .slice(0, 5);
 
   } catch (error) {

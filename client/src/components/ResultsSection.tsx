@@ -72,6 +72,23 @@ export function ResultsSection({ data }: ResultsSectionProps) {
     }
   };
 
+  const validPeerBetas = data.peers
+    .map(p => p.beta)
+    .filter((b): b is number => b !== null);
+
+  const averageBeta = validPeerBetas.length > 0
+    ? validPeerBetas.reduce((a, b) => a + b, 0) / validPeerBetas.length
+    : null;
+
+  const medianBeta = (() => {
+    if (validPeerBetas.length === 0) return null;
+    const sorted = [...validPeerBetas].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) / 2;
+  })();
+
   const mainBetaStyle = getBetaStyle(data.beta);
 
   // Prepare chart data
@@ -216,9 +233,22 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   (Mkt Cap as of {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
                 </span>
               </CardTitle>
-              <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground bg-background border-border">
-                Peer Relative Ranking
-              </Badge>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-end">
+                    <span className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest">Avg Peer Beta</span>
+                    <span className="text-xs font-mono font-black text-foreground">{averageBeta?.toFixed(3) || "N/A"}</span>
+                  </div>
+                  <div className="w-px h-6 bg-border" />
+                  <div className="flex flex-col items-end">
+                    <span className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest">Median Peer Beta</span>
+                    <span className="text-xs font-mono font-black text-foreground">{medianBeta?.toFixed(3) || "N/A"}</span>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground bg-background border-border">
+                  Peer Relative Ranking
+                </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">

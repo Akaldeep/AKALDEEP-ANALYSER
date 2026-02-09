@@ -210,7 +210,12 @@ export function ResultsSection({ data }: ResultsSectionProps) {
         <Card className="overflow-hidden shadow-sm border-border bg-card transition-colors">
           <CardHeader className="bg-muted/30 border-b py-3 px-6">
             <div className="flex items-center justify-between gap-4">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Peer Company Analysis</CardTitle>
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Peer Company Analysis
+                <span className="ml-2 lowercase font-normal text-[9px] opacity-70">
+                  (Mkt Cap as of {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
+                </span>
+              </CardTitle>
               <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground bg-background border-border">
                 Peer Relative Ranking
               </Badge>

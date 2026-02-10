@@ -119,12 +119,12 @@ export default function Home() {
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       {/* Header Section */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-black tracking-tight text-foreground uppercase">
-          Beta Coefficient Terminal
+      <div className="space-y-1">
+        <h1 className="text-3xl font-black tracking-tighter text-foreground uppercase">
+          Akaldeep Analyser
         </h1>
-        <p className="text-sm text-muted-foreground font-medium max-w-2xl">
-          Institutional-grade risk analytics for Indian equities. Input parameters to calculate historical beta and analyze peer correlation.
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
+          Primary Risk Assessment for Listed Indian Equities
         </p>
       </div>
 
@@ -274,7 +274,7 @@ export default function Home() {
           <div className="h-[300px] flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl bg-muted/30">
             <TrendingUp className="h-12 w-12 text-muted mb-4" />
             <p className="text-muted-foreground text-sm font-bold uppercase tracking-widest">
-              Awaiting Terminal Input
+              Awaiting Input
             </p>
           </div>
         )}

@@ -244,14 +244,14 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 <div className="text-4xl font-mono font-black text-foreground">
                   {averageBeta?.toFixed(3) || "N/A"}
                 </div>
-                <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-tighter">Mean volatility across 10 comparable peers</p>
+                <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-tighter text-center">Mean sensitivity across 10 comparable peers</p>
               </div>
               <div className="p-6 flex flex-col items-center justify-center bg-muted/5">
                 <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-2">Median Industry Beta</span>
                 <div className="text-4xl font-mono font-black text-foreground">
                   {medianBeta?.toFixed(3) || "N/A"}
                 </div>
-                <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-tighter">Midpoint volatility representing industry norm</p>
+                <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-tighter text-center">Midpoint sensitivity representing industry norm</p>
               </div>
             </div>
             <div className="p-3 bg-muted/20 text-center">

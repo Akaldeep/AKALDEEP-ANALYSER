@@ -91,6 +91,8 @@ export function ResultsSection({ data }: ResultsSectionProps) {
 
   const mainBetaStyle = getBetaStyle(data.beta);
 
+  const [targetSector, targetIndustryName] = (data.peers[0]?.sector || "").split(" > ");
+
   // Prepare chart data
   const chartData = [
     { name: data.ticker.split('.')[0], beta: data.beta, isPrimary: true },
@@ -222,6 +224,45 @@ export function ResultsSection({ data }: ResultsSectionProps) {
       </motion.div>
 
 
+      {/* Industry Benchmark Table */}
+      <motion.div variants={item}>
+        <Card className="overflow-hidden shadow-sm border-border bg-card transition-colors">
+          <CardHeader className="bg-muted/30 border-b py-3 px-6">
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Industry Benchmark Analysis
+              </CardTitle>
+              <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-primary bg-primary/5 border-primary/20">
+                {targetIndustryName || targetSector || "Sector Index"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x border-b border-border">
+              <div className="p-6 flex flex-col items-center justify-center bg-muted/5">
+                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-2">Average Industry Beta</span>
+                <div className="text-4xl font-mono font-black text-foreground">
+                  {averageBeta?.toFixed(3) || "N/A"}
+                </div>
+                <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-tighter">Mean volatility across 10 comparable peers</p>
+              </div>
+              <div className="p-6 flex flex-col items-center justify-center bg-muted/5">
+                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-2">Median Industry Beta</span>
+                <div className="text-4xl font-mono font-black text-foreground">
+                  {medianBeta?.toFixed(3) || "N/A"}
+                </div>
+                <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-tighter">Midpoint volatility representing industry norm</p>
+              </div>
+            </div>
+            <div className="p-3 bg-muted/20 text-center">
+              <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest italic">
+                * Statistical metrics derived from top 10 peers in the {targetIndustryName || targetSector || "same"} industry by market cap proximity.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Peer Company Analysis Table */}
       <motion.div variants={item}>
         <Card className="overflow-hidden shadow-sm border-border bg-card transition-colors">
@@ -233,22 +274,9 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   (Mkt Cap as of {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
                 </span>
               </CardTitle>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-end">
-                    <span className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest">Avg Peer Beta</span>
-                    <span className="text-xs font-mono font-black text-foreground">{averageBeta?.toFixed(3) || "N/A"}</span>
-                  </div>
-                  <div className="w-px h-6 bg-border" />
-                  <div className="flex flex-col items-end">
-                    <span className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest">Median Peer Beta</span>
-                    <span className="text-xs font-mono font-black text-foreground">{medianBeta?.toFixed(3) || "N/A"}</span>
-                  </div>
-                </div>
-                <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground bg-background border-border">
-                  Peer Relative Ranking
-                </Badge>
-              </div>
+              <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground bg-background border-border">
+                Peer Relative Ranking
+              </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">

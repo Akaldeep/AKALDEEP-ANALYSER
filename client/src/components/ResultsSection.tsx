@@ -363,6 +363,74 @@ export function ResultsSection({ data }: ResultsSectionProps) {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Data Sources and Methodology Section */}
+      <motion.div variants={item}>
+        <Card className="shadow-sm border-border bg-card transition-colors">
+          <CardHeader className="bg-muted/30 border-b py-3 px-6">
+            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <Info className="w-4 h-4" />
+              Data Sources & Methodology
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-primary border-b border-primary/20 pb-1">Primary Data Universe</h3>
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <div className="w-1 h-auto bg-primary rounded-full" />
+                    <div>
+                      <p className="text-[11px] font-bold text-foreground uppercase tracking-tight">Yahoo Finance API</p>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        Live institutional-grade market data for price discovery, historical OHLC data, and real-time market capitalization. Provides the foundation for all quantitative return regression models.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="w-1 h-auto bg-primary rounded-full" />
+                    <div>
+                      <p className="text-[11px] font-bold text-foreground uppercase tracking-tight">Indian Markets Database (Internal)</p>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        Curated industry-wise classification list of over 4,700+ NSE and BSE listed entities. Used for high-precision peer group discovery and industry sector mapping.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-primary border-b border-primary/20 pb-1">Beta Calculation Model</h3>
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <div className="w-1 h-auto bg-muted-foreground/30 rounded-full" />
+                    <div>
+                      <p className="text-[11px] font-bold text-foreground uppercase tracking-tight">Regression Analysis</p>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        Calculated using ordinary least squares (OLS) regression of daily asset returns against benchmark index (NIFTY 50 or BSE SENSEX) returns over the selected look-back period (1Y/3Y/5Y).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="w-1 h-auto bg-muted-foreground/30 rounded-full" />
+                    <div>
+                      <p className="text-[11px] font-bold text-foreground uppercase tracking-tight">Peer Selection Logic</p>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        System identifies peers through a multi-stage process: exact industry matching from internal classification, verified via live data summary, and ranked by market cap proximity to the target asset.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-8 pt-4 border-t border-border flex items-center justify-center gap-4 text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">
+              <span>Quantitative Risk Model v2.4</span>
+              <span className="w-1 h-1 bg-muted-foreground/30 rounded-full" />
+              <span>Real-time Financial Processing</span>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </motion.div>
   );
 }

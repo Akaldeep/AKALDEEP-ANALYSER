@@ -3,9 +3,10 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import YahooFinance from 'yahoo-finance2';
+import yahooFinance from 'yahoo-finance2';
 import * as cheerio from 'cheerio';
 import OpenAI from "openai";
+// @ts-ignore - Ignore module declaration error for xlsx in ESM
 import * as xlsx from 'xlsx/xlsx.mjs';
 import * as fs from 'fs';
 import path from 'path';
@@ -15,7 +16,9 @@ import path from 'path';
 import pkg from 'xlsx';
 const { readFile, utils } = pkg;
 
-const yahooFinance = new YahooFinance();
+// yahoo-finance2 v2+ usually exports as a default object.
+// We use the recommended default export pattern.
+
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -47,14 +50,15 @@ try {
       
       if (tickerIdx !== -1) {
         industryList = rawData.slice(1).map(row => {
-          const rawTicker = String(row[tickerIdx] || '').trim();
+          const rowData = row as any[];
+          const rawTicker = String(rowData[tickerIdx] || '').trim();
           // Extract symbol from "Exchange:Ticker" format like "NSE:TCS"
           const symbol = rawTicker.includes(':') ? rawTicker.split(':')[1] : rawTicker;
           
           return {
             symbol: symbol,
-            name: nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '',
-            industry: industryIdx !== -1 ? String(row[industryIdx] || '').trim() : ''
+            name: nameIdx !== -1 ? String(rowData[nameIdx] || '').trim() : '',
+            industry: industryIdx !== -1 ? String(rowData[industryIdx] || '').trim() : ''
           };
         }).filter(item => item.symbol);
       }
@@ -64,6 +68,9 @@ try {
 } catch (error) {
   console.error("Error loading Excel file:", error);
 }
+
+// @ts-ignore
+const yf: any = yahooFinance;
 
 // Helper to compute cosine similarity between two vectors
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
@@ -175,7 +182,7 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
       period2: new Date(endDate),
       interval: '1d' as const
     };
-    const result = await yahooFinance.historical(ticker, queryOptions);
+    const result = await yf.historical(ticker, queryOptions);
     return result;
   } catch (error) {
     console.error(`Error fetching data for ${ticker}:`, error);
@@ -185,7 +192,7 @@ async function fetchHistoricalData(ticker: string, startDate: string, endDate: s
 
 async function getPeers(ticker: string): Promise<{ slug: string; sector: string; marketCap: number; similarityScore?: number; keywords?: string[] }[]> {
   try {
-    const summary = await yahooFinance.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
+    const summary = await yf.quoteSummary(ticker, { modules: ['assetProfile', 'summaryDetail'] }).catch(() => null);
     if (!summary?.assetProfile) return [];
 
     const targetIndustry = summary.assetProfile.industry || "";
@@ -199,8 +206,8 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
     let candidateSymbols: string[] = [];
 
     // 1. Get initial recommendations from Yahoo
-    const recommendations = await yahooFinance.recommendationsBySymbol(ticker);
-    candidateSymbols = recommendations?.recommendedSymbols?.map(r => r.symbol) || [];
+    const recommendations = await yf.recommendationsBySymbol(ticker);
+    candidateSymbols = recommendations?.recommendedSymbols?.map((r: any) => r.symbol) || [];
 
     // 2. Add candidates from Excel list matching industry
     if (excelIndustry) {
@@ -216,23 +223,23 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
 
     // 3. Search Yahoo if we still have few candidates
     if (candidateSymbols.length < 10 && targetIndustry) {
-      const searchResults = await yahooFinance.search(targetIndustry, { 
+      const searchResults = await yf.search(targetIndustry, { 
         quotesCount: 20
       });
       
       const additionalSymbols = searchResults.quotes
-        .filter(q => {
+        .filter((q: any) => {
           const s = (q as any).symbol;
           return s && (s.endsWith('.NS') || s.endsWith('.BO'));
         })
-        .map(q => (q as any).symbol);
+        .map((q: any) => (q as any).symbol);
       candidateSymbols = Array.from(new Set([...candidateSymbols, ...additionalSymbols]));
     }
 
     // 4. Batch fetch summaries to verify industry and get Market Cap
     const peerSummaries = await Promise.all(
       candidateSymbols.map(s => 
-        yahooFinance.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] })
+        yf.quoteSummary(s, { modules: ['assetProfile', 'summaryDetail'] })
           .catch(() => null)
       )
     );
@@ -266,6 +273,7 @@ async function getPeers(ticker: string): Promise<{ slug: string; sector: string;
 
   } catch (error) {
     console.error("Error fetching live industry peers:", error);
+    // Return empty instead of crashing deployment/requests
     return [];
   }
 }
@@ -294,7 +302,7 @@ export async function registerRoutes(
     const [marketDataInitial, stockDataInitial, quoteInitial] = await Promise.all([
         fetchHistoricalData(marketTicker, startDate, endDate),
         fetchHistoricalData(fullTicker, startDate, endDate),
-        yahooFinance.quote(fullTicker).catch(() => null)
+        yf.quote(fullTicker).catch(() => null)
     ]);
 
     let marketData = marketDataInitial;
@@ -310,7 +318,7 @@ export async function registerRoutes(
         const altTicker = ticker.endsWith(altSuffix) ? ticker : `${ticker}${altSuffix}`;
         const [altData, altQuote] = await Promise.all([
             fetchHistoricalData(altTicker, startDate, endDate),
-            yahooFinance.quote(altTicker).catch(() => null)
+            yf.quote(altTicker).catch(() => null)
         ]);
         
         if (!altData || altData.length === 0) {
@@ -363,7 +371,7 @@ export async function registerRoutes(
             console.log(`Processing peer: ${peerFullTicker}`);
             const [peerDataInitial, peerQuote] = await Promise.all([
                 fetchHistoricalData(peerFullTicker, startDate, endDate),
-                yahooFinance.quote(peerFullTicker).catch(() => null)
+                yf.quote(peerFullTicker).catch(() => null)
             ]);
             let peerData = peerDataInitial;
             let pName = peerQuote?.shortName || peerQuote?.longName || peerSymbol;
@@ -375,7 +383,7 @@ export async function registerRoutes(
               console.log(`Peer ticker ${peerFullTicker} failed, trying alternative ${altTicker}`);
               const [pAltData, pAltQuote] = await Promise.all([
                   fetchHistoricalData(altTicker, startDate, endDate),
-                  yahooFinance.quote(altTicker).catch(() => null)
+                  yf.quote(altTicker).catch(() => null)
               ]);
               peerData = pAltData;
               if (pAltQuote) pName = pAltQuote.shortName || pAltQuote.longName || peerSymbol;

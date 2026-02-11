@@ -304,10 +304,11 @@ export async function registerRoutes(
 
       const fullTicker = ticker.endsWith(suffix) ? ticker : `${ticker}${suffix}`;
 
-    const [marketDataInitial, stockDataInitial, quoteInitial] = await Promise.all([
+    const [marketDataInitial, stockDataInitial, quoteInitial, targetFinancials] = await Promise.all([
         fetchHistoricalData(marketTicker, startDate, endDate),
         fetchHistoricalData(fullTicker, startDate, endDate),
-        yf.quote(fullTicker).catch(() => null)
+        yf.quote(fullTicker).catch(() => null),
+        yf.quoteSummary(fullTicker, { modules: ['financialData'] }).catch(() => null)
     ]);
 
     let marketData = marketDataInitial;
@@ -361,6 +362,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Insufficient data points to calculate metrics" });
       }
 
+      const targetRevenue = targetFinancials?.financialData?.totalRevenue;
+      const targetRevenueDate = quoteInitial?.financialCurrency ? new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : undefined;
+
       const peerSymbols = await getPeers(fullTicker);
       console.log(`Found ${peerSymbols.length} total potential peers`);
       
@@ -373,10 +377,10 @@ export async function registerRoutes(
               peerFullTicker = `${peerSymbol}${suffix}`;
             }
             
-            console.log(`Processing peer: ${peerFullTicker}`);
-            const [peerDataInitial, peerQuote] = await Promise.all([
+            const [peerDataInitial, peerQuote, peerFinancials] = await Promise.all([
                 fetchHistoricalData(peerFullTicker, startDate, endDate),
-                yf.quote(peerFullTicker).catch(() => null)
+                yf.quote(peerFullTicker).catch(() => null),
+                yf.quoteSummary(peerFullTicker, { modules: ['financialData'] }).catch(() => null)
             ]);
             let peerData = peerDataInitial;
             let pName = peerQuote?.shortName || peerQuote?.longName || peerSymbol;
@@ -386,12 +390,15 @@ export async function registerRoutes(
               const altSuffix = suffix === ".NS" ? ".BO" : ".NS";
               const altTicker = peerSymbol.endsWith(altSuffix) ? peerSymbol : `${peerSymbol}${altSuffix}`;
               console.log(`Peer ticker ${peerFullTicker} failed, trying alternative ${altTicker}`);
-              const [pAltData, pAltQuote] = await Promise.all([
+              const [pAltData, pAltQuote, pAltFinancials] = await Promise.all([
                   fetchHistoricalData(altTicker, startDate, endDate),
-                  yf.quote(altTicker).catch(() => null)
+                  yf.quote(altTicker).catch(() => null),
+                  yf.quoteSummary(altTicker, { modules: ['financialData'] }).catch(() => null)
               ]);
               peerData = pAltData;
               if (pAltQuote) pName = pAltQuote.shortName || pAltQuote.longName || peerSymbol;
+              // If fallback worked, use its financials
+              if (pAltFinancials) (peerFinancials as any) = pAltFinancials;
             }
 
             if (!peerData || peerData.length < 2) {
@@ -417,6 +424,11 @@ export async function registerRoutes(
             }
 
             const pMetrics = calculateFinancialMetrics(pPrices, mPrices);
+            
+            // Extract revenue data
+            const revenue = peerFinancials?.financialData?.totalRevenue;
+            const revenueDate = peerQuote?.financialCurrency ? new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : undefined;
+
             return { 
               ticker: peerSymbol, 
               name: pName, 
@@ -426,6 +438,8 @@ export async function registerRoutes(
               correlation: pMetrics?.correlation ?? null,
               rSquared: pMetrics?.rSquared ?? null,
               marketCap: peer.marketCap,
+              revenue: revenue,
+              revenueDate: revenueDate,
               sector: peer.sector 
             };
           } catch (e) {
@@ -456,6 +470,8 @@ export async function registerRoutes(
           correlation: metrics.correlation,
           rSquared: metrics.rSquared,
           period: period || "5Y",
+          revenue: targetRevenue,
+          revenueDate: targetRevenueDate,
           peers: finalPeers
       };
 

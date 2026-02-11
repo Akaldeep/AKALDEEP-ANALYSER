@@ -286,10 +286,11 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   <TableRow className="hover:bg-transparent bg-muted/20">
                     <TableHead className="w-[18%] pl-6 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Asset Name</TableHead>
                     <TableHead className="w-[18%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Industry</TableHead>
-                    <TableHead className="w-[14%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mkt Cap (Cr)</TableHead>
-                    <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Beta</TableHead>
+                    <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mkt Cap (Cr)</TableHead>
+                    <TableHead className="w-[12%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Revenue (Cr)</TableHead>
+                    <TableHead className="w-[8%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Beta</TableHead>
                     <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Volatility</TableHead>
-                    <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">R^2</TableHead>
+                    <TableHead className="w-[8%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">R^2</TableHead>
                     <TableHead className="w-[14%] text-right pr-6 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Metric</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -323,6 +324,18 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                           <span className="text-xs font-mono font-bold text-muted-foreground">
                             {peer.marketCap ? `₹${(peer.marketCap / 10000000).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : "-"}
                           </span>
+                        </TableCell>
+                        <TableCell className="text-right py-4">
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs font-mono font-bold text-muted-foreground">
+                              {peer.revenue ? `₹${(peer.revenue / 10000000).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : "-"}
+                            </span>
+                            {peer.revenueDate && (
+                              <span className="text-[8px] text-muted-foreground uppercase opacity-70">
+                                {peer.revenueDate}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right py-4">
                           <span className={`text-sm font-mono font-black ${style.color}`}>

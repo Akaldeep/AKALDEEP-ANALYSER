@@ -56,6 +56,8 @@ export const peerBetaSchema = z.object({
     correlation: z.number().nullable(),
     rSquared: z.number().nullable(),
     marketCap: z.number().optional(),
+    revenue: z.number().optional(),
+    revenueDate: z.string().optional(),
     sector: z.string().optional(),
     similarityScore: z.number().optional(),
     confidence: z.enum(["High", "Medium", "Fallback"]).optional(),
@@ -74,6 +76,8 @@ export const calculateBetaResponseSchema = z.object({
     correlation: z.number().optional(),
     rSquared: z.number().optional(),
     period: z.string().optional(),
+    revenue: z.number().optional(),
+    revenueDate: z.string().optional(),
     peers: z.array(peerBetaSchema)
 });
 

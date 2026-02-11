@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
 import * as cheerio from 'cheerio';
 import OpenAI from "openai";
 // @ts-ignore - Ignore module declaration error for xlsx in ESM
@@ -16,8 +16,17 @@ import path from 'path';
 import pkg from 'xlsx';
 const { readFile, utils } = pkg;
 
-// yahoo-finance2 v2+ usually exports as a default object.
-// We use the recommended default export pattern.
+const yf = new YahooFinance();
+
+// Set user agent or other configs if needed to avoid blocking
+if (yf.setConfig) {
+  yf.setConfig({
+    queue: {
+      concurrency: 2,
+      delay: 100
+    }
+  });
+}
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -69,18 +78,6 @@ try {
   console.error("Error loading Excel file:", error);
 }
 
-// @ts-ignore
-const yf: any = yahooFinance;
-
-// Set user agent or other configs if needed to avoid blocking
-if (yf.setConfig) {
-  yf.setConfig({
-    queue: {
-      concurrency: 2,
-      delay: 100
-    }
-  });
-}
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
   let dotProduct = 0;
   let mA = 0;

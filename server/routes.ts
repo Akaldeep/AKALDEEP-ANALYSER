@@ -72,7 +72,15 @@ try {
 // @ts-ignore
 const yf: any = yahooFinance;
 
-// Helper to compute cosine similarity between two vectors
+// Set user agent or other configs if needed to avoid blocking
+if (yf.setConfig) {
+  yf.setConfig({
+    queue: {
+      concurrency: 2,
+      delay: 100
+    }
+  });
+}
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
   let dotProduct = 0;
   let mA = 0;

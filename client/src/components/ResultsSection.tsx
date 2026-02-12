@@ -168,10 +168,46 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 </div>
                 <div className="p-4 bg-muted/30 rounded-lg border border-border">
                   <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest flex items-center mb-1">
+                    Revenue (Cr)
+                    <MetricTooltip title="Total Revenue" definition="Total revenue reported by the company in the last fiscal period." />
+                  </div>
+                  <div className="text-xl font-mono font-black text-foreground">
+                    {data.revenue ? `₹${(data.revenue / 10000000).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : "N/A"}
+                  </div>
+                  {data.revenueDate && (
+                    <div className="text-[8px] text-muted-foreground uppercase opacity-70 mt-1">
+                      {data.revenueDate}
+                    </div>
+                  )}
+                </div>
+                <div className="p-4 bg-muted/30 rounded-lg border border-border">
+                  <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest flex items-center mb-1">
+                    EV (Cr)
+                    <MetricTooltip title="Enterprise Value" definition="Total value of the company, calculated as market cap plus debt minus cash." />
+                  </div>
+                  <div className="text-xl font-mono font-black text-foreground">
+                    {data.enterpriseValue ? `₹${(data.enterpriseValue / 10000000).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : "N/A"}
+                  </div>
+                </div>
+                <div className="p-4 bg-muted/30 rounded-lg border border-border">
+                  <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest flex items-center mb-1">
+                    EV/REV
+                    <MetricTooltip title="EV/Revenue Multiple" definition="Ratio of Enterprise Value to Total Revenue. Indicates how much the market values each rupee of revenue." />
+                  </div>
+                  <div className="text-xl font-mono font-black text-foreground">
+                    {data.evRevenueMultiple ? data.evRevenueMultiple.toFixed(2) : "N/A"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Advanced Risk Metrics Grid */}
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-muted/30 rounded-lg border border-border">
+                  <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest flex items-center mb-1">
                     Alpha
                     <MetricTooltip title="Jensen's Alpha" definition="Excess return of the asset relative to the return predicted by CAPM. Positive alpha indicates outperformance." />
                   </div>
-                  <div className="text-xl font-mono font-black text-foreground text-right w-full">
+                  <div className="text-xl font-mono font-black text-foreground">
                     {data.alpha !== undefined && data.alpha !== null ? data.alpha.toFixed(6) : "N/A"}
                   </div>
                 </div>

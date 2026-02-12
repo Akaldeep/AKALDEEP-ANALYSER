@@ -308,7 +308,7 @@ export async function registerRoutes(
         fetchHistoricalData(marketTicker, startDate, endDate),
         fetchHistoricalData(fullTicker, startDate, endDate),
         yf.quote(fullTicker).catch(() => null),
-        yf.quoteSummary(fullTicker, { modules: ['financialData'] }).catch(() => null)
+        yf.quoteSummary(fullTicker, { modules: ['financialData', 'defaultKeyStatistics'] }).catch(() => null)
     ]);
 
     let marketData = marketDataInitial;
@@ -363,7 +363,11 @@ export async function registerRoutes(
       }
 
       const targetRevenue = targetFinancials?.financialData?.totalRevenue;
-      const targetRevenueDate = quoteInitial?.financialCurrency ? new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : undefined;
+      const targetEnterpriseValue = targetFinancials?.defaultKeyStatistics?.enterpriseValue;
+      const targetEvRevenueMultiple = (targetEnterpriseValue && targetRevenue && targetRevenue !== 0) ? (targetEnterpriseValue / targetRevenue) : undefined;
+      const targetRevenueDate = targetFinancials?.financialData?.lastFiscalYearEnd 
+        ? new Date(targetFinancials.financialData.lastFiscalYearEnd).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) 
+        : undefined;
 
       const peerSymbols = await getPeers(fullTicker);
       console.log(`Found ${peerSymbols.length} total potential peers`);
@@ -380,7 +384,7 @@ export async function registerRoutes(
             const [peerDataInitial, peerQuote, peerFinancials] = await Promise.all([
                 fetchHistoricalData(peerFullTicker, startDate, endDate),
                 yf.quote(peerFullTicker).catch(() => null),
-                yf.quoteSummary(peerFullTicker, { modules: ['financialData'] }).catch(() => null)
+                yf.quoteSummary(peerFullTicker, { modules: ['financialData', 'defaultKeyStatistics'] }).catch(() => null)
             ]);
             let peerData = peerDataInitial;
             let pName = peerQuote?.shortName || peerQuote?.longName || peerSymbol;
@@ -393,7 +397,7 @@ export async function registerRoutes(
               const [pAltData, pAltQuote, pAltFinancials] = await Promise.all([
                   fetchHistoricalData(altTicker, startDate, endDate),
                   yf.quote(altTicker).catch(() => null),
-                  yf.quoteSummary(altTicker, { modules: ['financialData'] }).catch(() => null)
+                  yf.quoteSummary(altTicker, { modules: ['financialData', 'defaultKeyStatistics'] }).catch(() => null)
               ]);
               peerData = pAltData;
               if (pAltQuote) pName = pAltQuote.shortName || pAltQuote.longName || peerSymbol;
@@ -425,9 +429,14 @@ export async function registerRoutes(
 
             const pMetrics = calculateFinancialMetrics(pPrices, mPrices);
             
-            // Extract revenue data
+            // Extract revenue and EV data
             const revenue = peerFinancials?.financialData?.totalRevenue;
-            const revenueDate = peerQuote?.financialCurrency ? new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : undefined;
+            const enterpriseValue = peerFinancials?.defaultKeyStatistics?.enterpriseValue;
+            const evRevenueMultiple = (enterpriseValue && revenue && revenue !== 0) ? (enterpriseValue / revenue) : undefined;
+            
+            // Format exact date if available
+            const formatDate = (date: any) => date ? new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : undefined;
+            const revenueDate = formatDate(peerFinancials?.financialData?.lastFiscalYearEnd);
 
             return { 
               ticker: peerSymbol, 
@@ -440,6 +449,8 @@ export async function registerRoutes(
               marketCap: peer.marketCap,
               revenue: revenue,
               revenueDate: revenueDate,
+              enterpriseValue: enterpriseValue,
+              evRevenueMultiple: evRevenueMultiple,
               sector: peer.sector 
             };
           } catch (e) {
@@ -448,7 +459,10 @@ export async function registerRoutes(
           }
       }));
 
-      const finalPeers = peerBetas.filter((p): p is any => p !== null);
+      const finalPeers = peerBetas
+        .filter((p): p is any => p !== null)
+        .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0));
+      
       console.log(`Returning ${finalPeers.length} valid peer results`);
 
       await storage.createSearch({
@@ -472,6 +486,8 @@ export async function registerRoutes(
           period: period || "5Y",
           revenue: targetRevenue,
           revenueDate: targetRevenueDate,
+          enterpriseValue: targetEnterpriseValue,
+          evRevenueMultiple: targetEvRevenueMultiple,
           peers: finalPeers
       };
 

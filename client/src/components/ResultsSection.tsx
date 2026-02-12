@@ -244,7 +244,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 <div className="text-4xl font-mono font-black text-foreground">
                   {averageBeta?.toFixed(3) || "N/A"}
                 </div>
-                <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-tighter text-center">Mean sensitivity across 10 comparable peers</p>
+                <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-tighter text-center">Mean sensitivity across {data.peers.length} comparable peers</p>
               </div>
               <div className="p-6 flex flex-col items-center justify-center bg-muted/5">
                 <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-2">Median Industry Beta</span>
@@ -256,7 +256,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
             </div>
             <div className="p-3 bg-muted/20 text-center">
               <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest italic">
-                * Statistical metrics derived from top 10 peers in the {targetIndustryName || targetSector || "same"} industry by market cap proximity.
+                * Statistical metrics derived from top {data.peers.length} peers in the {targetIndustryName || targetSector || "same"} industry by market cap proximity.
               </p>
             </div>
           </CardContent>
@@ -284,7 +284,8 @@ export function ResultsSection({ data }: ResultsSectionProps) {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent bg-muted/20">
-                    <TableHead className="w-[15%] pl-6 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Asset Name</TableHead>
+                    <TableHead className="w-[40px] pl-6 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">#</TableHead>
+                    <TableHead className="w-[15%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Asset Name</TableHead>
                     <TableHead className="w-[15%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Industry</TableHead>
                     <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mkt Cap (Cr)</TableHead>
                     <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Revenue (Cr)</TableHead>
@@ -296,12 +297,15 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.peers.map((peer) => {
+                  {data.peers.map((peer, index) => {
                     const style = getBetaStyle(peer.beta);
                     const [sector, industry] = (peer.sector || "").split(" > ");
                     return (
                       <TableRow key={peer.ticker} className="group hover:bg-muted/20 transition-colors border-b last:border-0">
-                        <TableCell className="pl-6 py-4">
+                        <TableCell className="pl-6 py-4 text-[10px] font-mono font-bold text-muted-foreground/60">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell className="py-4">
                           <div className="flex flex-col gap-0.5">
                             <span className="text-sm font-bold text-foreground leading-none">{peer.name}</span>
                             <code className="text-[9px] font-mono text-muted-foreground uppercase tracking-tighter">

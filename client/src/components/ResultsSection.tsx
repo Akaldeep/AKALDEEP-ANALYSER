@@ -9,8 +9,9 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { AlertCircle, TrendingUp, TrendingDown, Minus, Info } from "lucide-react";
+import { AlertCircle, TrendingUp, TrendingDown, Minus, Info, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -39,6 +40,74 @@ const MetricTooltip = ({ title, definition }: { title: string; definition: strin
 );
 
 export function ResultsSection({ data }: ResultsSectionProps) {
+  const exportToCSV = () => {
+    const headers = [
+      "S. No.",
+      "Company Name",
+      "Ticker",
+      "Industry",
+      "Sector",
+      "Market Cap (Cr)",
+      "Revenue (Cr)",
+      "Revenue Date",
+      "Enterprise Value (Cr)",
+      "EV/Revenue",
+      "Beta",
+      "Volatility",
+      "R-Squared"
+    ];
+
+    const rows = [
+      [
+        "0",
+        data.name || data.ticker,
+        data.ticker,
+        data.peers[0]?.sector.split(" > ")[1] || "Target",
+        data.peers[0]?.sector.split(" > ")[0] || "Target",
+        "-",
+        data.revenue ? (data.revenue / 10000000).toFixed(2) : "-",
+        data.revenueDate || "-",
+        data.enterpriseValue ? (data.enterpriseValue / 10000000).toFixed(2) : "-",
+        data.evRevenueMultiple ? data.evRevenueMultiple.toFixed(2) : "-",
+        data.beta.toFixed(3),
+        data.volatility ? (data.volatility * 100).toFixed(2) + "%" : "-",
+        data.rSquared ? data.rSquared.toFixed(3) : "-"
+      ],
+      ...data.peers.map((peer, index) => {
+        const [sector, industry] = (peer.sector || "").split(" > ");
+        return [
+          (index + 1).toString(),
+          peer.name,
+          peer.ticker,
+          industry || "N/A",
+          sector || "N/A",
+          peer.marketCap ? (peer.marketCap / 10000000).toFixed(2) : "-",
+          peer.revenue ? (peer.revenue / 10000000).toFixed(2) : "-",
+          peer.revenueDate || "-",
+          peer.enterpriseValue ? (peer.enterpriseValue / 10000000).toFixed(2) : "-",
+          peer.evRevenueMultiple ? peer.evRevenueMultiple.toFixed(2) : "-",
+          peer.beta !== null ? peer.beta.toFixed(3) : "-",
+          peer.volatility !== null ? (peer.volatility * 100).toFixed(2) + "%" : "-",
+          peer.rSquared !== null ? peer.rSquared.toFixed(3) : "-"
+        ];
+      })
+    ];
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(val => `"${val}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `akaldeep_analysis_${data.ticker}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -328,9 +397,20 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   (Mkt Cap as of {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
                 </span>
               </CardTitle>
-              <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground bg-background border-border">
-                Peer Relative Ranking
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={exportToCSV}
+                  className="h-7 text-[9px] font-bold uppercase tracking-widest bg-background border-border hover:bg-muted/50 transition-colors gap-1.5"
+                >
+                  <Download className="w-3 h-3" />
+                  Export CSV
+                </Button>
+                <Badge variant="outline" className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground bg-background border-border">
+                  Peer Relative Ranking
+                </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">

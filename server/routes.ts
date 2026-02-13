@@ -304,12 +304,15 @@ export async function registerRoutes(
 
       const fullTicker = ticker.endsWith(suffix) ? ticker : `${ticker}${suffix}`;
 
-    const [marketDataInitial, stockDataInitial, quoteInitial, targetFinancials] = await Promise.all([
+    const [marketDataInitial, stockDataInitial, quoteInitial, targetFinancials, usdInrQuote] = await Promise.all([
         fetchHistoricalData(marketTicker, startDate, endDate),
         fetchHistoricalData(fullTicker, startDate, endDate),
         yf.quote(fullTicker).catch(() => null),
-        yf.quoteSummary(fullTicker, { modules: ['financialData', 'defaultKeyStatistics'] }).catch(() => null)
+        yf.quoteSummary(fullTicker, { modules: ['financialData', 'defaultKeyStatistics'] }).catch(() => null),
+        yf.quote('USDINR=X').catch(() => null)
     ]);
+
+    const exchangeRate = usdInrQuote?.regularMarketPrice || 83.0; // Fallback rate
 
     let marketData = marketDataInitial;
     let stockData = stockDataInitial;
@@ -362,8 +365,17 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Insufficient data points to calculate metrics" });
       }
 
-      const targetRevenue = targetFinancials?.financialData?.totalRevenue;
-      const targetEnterpriseValue = targetFinancials?.defaultKeyStatistics?.enterpriseValue;
+      const targetCurrency = quoteInitial?.currency || 'INR';
+      const conversionFactor = targetCurrency === 'USD' ? exchangeRate : 1;
+      
+      const rawRevenue = targetFinancials?.financialData?.totalRevenue;
+      const targetRevenue = rawRevenue ? rawRevenue * conversionFactor : undefined;
+      
+      const rawEV = targetFinancials?.defaultKeyStatistics?.enterpriseValue;
+      const targetEnterpriseValue = rawEV ? rawEV * conversionFactor : undefined;
+      
+      const targetMarketCap = quoteInitial?.marketCap ? quoteInitial.marketCap * conversionFactor : undefined;
+      
       const targetEvRevenueMultiple = (targetEnterpriseValue && targetRevenue && targetRevenue !== 0) ? (targetEnterpriseValue / targetRevenue) : undefined;
       const targetRevenueDate = targetFinancials?.financialData?.lastFiscalYearEnd 
         ? new Date(targetFinancials.financialData.lastFiscalYearEnd).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) 
@@ -484,6 +496,7 @@ export async function registerRoutes(
           correlation: metrics.correlation,
           rSquared: metrics.rSquared,
           period: period || "5Y",
+          marketCap: targetMarketCap,
           revenue: targetRevenue,
           revenueDate: targetRevenueDate,
           enterpriseValue: targetEnterpriseValue,

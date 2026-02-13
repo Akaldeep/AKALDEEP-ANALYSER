@@ -33,7 +33,9 @@ const MetricTooltip = ({ title, definition }: { title: string; definition: strin
       </TooltipTrigger>
       <TooltipContent className="max-w-xs p-3 bg-popover text-popover-foreground border border-border shadow-xl">
         <p className="text-[11px] font-bold uppercase mb-1 tracking-wider text-primary">{title}</p>
-        <p className="text-[10px] leading-relaxed text-muted-foreground">{definition}</p>
+        <div className="text-[10px] leading-relaxed text-muted-foreground">
+          {typeof definition === 'string' ? definition : definition}
+        </div>
       </TooltipContent>
     </Tooltip>
   </TooltipProvider>
@@ -64,7 +66,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
         data.ticker,
         data.peers[0]?.sector.split(" > ")[1] || "Target",
         data.peers[0]?.sector.split(" > ")[0] || "Target",
-        "-",
+        data.marketCap ? (data.marketCap / 10000000).toFixed(2) : "-",
         data.revenue ? (data.revenue / 10000000).toFixed(2) : "-",
         data.revenueDate || "-",
         data.enterpriseValue ? (data.enterpriseValue / 10000000).toFixed(2) : "-",
@@ -108,6 +110,7 @@ export function ResultsSection({ data }: ResultsSectionProps) {
     link.click();
     document.body.removeChild(link);
   };
+
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -128,17 +131,6 @@ export function ResultsSection({ data }: ResultsSectionProps) {
     if (beta > 1.2) return { color: "text-destructive", icon: <TrendingUp className="w-4 h-4" />, hex: "#ef4444" };
     if (beta < 0.8) return { color: "text-emerald-600 dark:text-emerald-500", icon: <TrendingDown className="w-4 h-4" />, hex: "#059669" };
     return { color: "text-primary", icon: <Minus className="w-4 h-4 rotate-45" />, hex: "#3b82f6" };
-  };
-
-  const getConfidenceStyle = (confidence?: string) => {
-    switch (confidence) {
-      case 'High':
-        return 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-900';
-      case 'Medium':
-        return 'text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-900';
-      default:
-        return 'text-muted-foreground bg-muted/30 border-border';
-    }
   };
 
   const validPeerBetas = data.peers
@@ -162,17 +154,35 @@ export function ResultsSection({ data }: ResultsSectionProps) {
 
   const [targetSector, targetIndustryName] = (data.peers[0]?.sector || "").split(" > ");
 
-  // Prepare chart data
-  const chartData = [
-    { name: data.ticker.split('.')[0], beta: data.beta, isPrimary: true },
-    ...data.peers
-      .filter(p => p.beta !== null)
-      .map(p => ({
-        name: p.ticker.split('.')[0],
-        beta: p.beta as number,
-        isPrimary: false
-      }))
-  ].sort((a, b) => b.beta - a.beta);
+  const methodologyInfo = (
+    <div className="space-y-4 p-1">
+      <div>
+        <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-2">Data Sources</h4>
+        <ul className="space-y-1.5">
+          <li className="text-[10px] text-muted-foreground uppercase tracking-tight leading-relaxed">
+            • <span className="text-foreground font-bold">Market Data:</span> Real-time and historical pricing via Yahoo Finance.
+          </li>
+          <li className="text-[10px] text-muted-foreground uppercase tracking-tight leading-relaxed">
+            • <span className="text-foreground font-bold">Peer Classification:</span> Based on Prof. Aswath Damodaran's Industry Classification.
+          </li>
+        </ul>
+      </div>
+      <div>
+        <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-2">Methodology</h4>
+        <ul className="space-y-1.5">
+          <li className="text-[10px] text-muted-foreground uppercase tracking-tight leading-relaxed">
+            • <span className="text-foreground font-bold">Financials:</span> Revenue and EV are Trailing Twelve Month (TTM) figures.
+          </li>
+          <li className="text-[10px] text-muted-foreground uppercase tracking-tight leading-relaxed">
+            • <span className="text-foreground font-bold">Currency:</span> Non-INR figures are converted using real-time Yahoo Finance exchange rates.
+          </li>
+          <li className="text-[10px] text-muted-foreground uppercase tracking-tight leading-relaxed italic border-l-2 border-primary/20 pl-2 mt-2">
+            * Disclaimer: Conversions are for comparative purposes. Historical exchange rates may vary at reporting dates.
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
 
   return (
     <motion.div 
@@ -181,7 +191,6 @@ export function ResultsSection({ data }: ResultsSectionProps) {
       animate="show"
       className="space-y-6 w-full"
     >
-      {/* Primary Result Card */}
       <motion.div variants={item}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="md:col-span-3 border border-border shadow-sm bg-card overflow-hidden group transition-colors">
@@ -224,8 +233,16 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 </div>
               </div>
               
-              {/* Secondary Metrics Grid */}
-              <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="p-4 bg-muted/30 rounded-lg border border-border">
+                  <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest flex items-center mb-1">
+                    Market Cap (Cr)
+                    <MetricTooltip title="Market Capitalization" definition="Total market value of the company's outstanding shares." />
+                  </div>
+                  <div className="text-xl font-mono font-black text-foreground">
+                    {data.marketCap ? `₹${(data.marketCap / 10000000).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : "N/A"}
+                  </div>
+                </div>
                 <div className="p-4 bg-muted/30 rounded-lg border border-border">
                   <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest flex items-center mb-1">
                     Volatility
@@ -269,7 +286,6 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 </div>
               </div>
 
-              {/* Advanced Risk Metrics Grid */}
               <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-muted/30 rounded-lg border border-border">
                   <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest flex items-center mb-1">
@@ -328,8 +344,6 @@ export function ResultsSection({ data }: ResultsSectionProps) {
         </div>
       </motion.div>
 
-
-      {/* Industry Benchmark Table */}
       <motion.div variants={item}>
         <Card className="overflow-hidden shadow-sm border-border bg-card transition-colors">
           <CardHeader className="bg-muted/30 border-b py-3 px-6">
@@ -360,22 +374,12 @@ export function ResultsSection({ data }: ResultsSectionProps) {
               </div>
             </div>
             <div className="p-4 bg-muted/20 border-t border-border">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-foreground mb-2">Data Sources & Methodology</h4>
-                  <ul className="space-y-1">
-                    <li className="text-[9px] text-muted-foreground uppercase tracking-tighter">
-                      • Market Data: Real-time and historical pricing via Yahoo Finance API.
-                    </li>
-                    <li className="text-[9px] text-muted-foreground uppercase tracking-tighter">
-                      • Peer Classification: Based on Prof. Aswath Damodaran's Indian Companies Industry Classification.
-                    </li>
-                    <li className="text-[9px] text-muted-foreground uppercase tracking-tighter">
-                      • Financials: Revenue and Enterprise Value are Trailing Twelve Month (TTM) figures.
-                    </li>
-                  </ul>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <MetricTooltip title="Data Sources & Methodology" definition={methodologyInfo} />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Analysis Parameters</span>
                 </div>
-                <div className="text-center md:text-right flex flex-col justify-end">
+                <div className="text-center md:text-right">
                   <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest italic">
                     * Statistical metrics derived from top {data.peers.length} peers in the {targetIndustryName || targetSector || "same"} industry by market cap proximity.
                   </p>
@@ -386,7 +390,6 @@ export function ResultsSection({ data }: ResultsSectionProps) {
         </Card>
       </motion.div>
 
-      {/* Peer Company Analysis Table */}
       <motion.div variants={item}>
         <Card className="overflow-hidden shadow-sm border-border bg-card transition-colors">
           <CardHeader className="bg-muted/30 border-b py-3 px-6">
@@ -419,15 +422,16 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent bg-muted/20">
                     <TableHead className="w-[40px] pl-6 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">#</TableHead>
-                    <TableHead className="w-[15%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Asset Name</TableHead>
-                    <TableHead className="w-[15%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Industry</TableHead>
+                    <TableHead className="w-[12%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Asset Name</TableHead>
+                    <TableHead className="w-[12%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Industry</TableHead>
                     <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mkt Cap (Cr)</TableHead>
                     <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Revenue (Cr) [TTM]</TableHead>
                     <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">EV (Cr) [TTM]</TableHead>
                     <TableHead className="w-[8%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">EV/REV</TableHead>
                     <TableHead className="w-[8%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Beta</TableHead>
                     <TableHead className="w-[8%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Volatility</TableHead>
-                    <TableHead className="w-[16%] text-right pr-6 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Metric</TableHead>
+                    <TableHead className="w-[8%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">R-Squared</TableHead>
+                    <TableHead className="w-[14%] text-right pr-6 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Metric</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -503,16 +507,13 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                         </TableCell>
                         <TableCell className="text-right pr-6 py-4">
                           {peer.error ? (
-                            <div className="flex items-center justify-end gap-1 text-destructive font-bold text-[9px] uppercase tracking-tighter">
-                              <AlertCircle className="w-2.5 h-2.5" />
-                              <span>ERR</span>
-                            </div>
+                            <MetricTooltip title="Calculation Error" definition={peer.error} />
                           ) : (
-                            <div className="flex items-center justify-end gap-2">
-                               {style.icon}
-                               <span className={`text-[9px] font-black uppercase tracking-tighter ${style.color}`}>
-                                 {peer.beta! > 1.2 ? "Aggressive" : peer.beta! < 0.8 ? "Stable" : "Balanced"}
-                               </span>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {style.icon}
+                              <span className={`text-[9px] font-black uppercase tracking-widest ${style.color}`}>
+                                {peer.beta !== null ? (peer.beta > 1.2 ? "High" : peer.beta < 0.8 ? "Low" : "Med") : "-"}
+                              </span>
                             </div>
                           )}
                         </TableCell>
@@ -521,74 +522,6 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                   })}
                 </TableBody>
               </Table>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Data Sources and Methodology Section */}
-      <motion.div variants={item}>
-        <Card className="shadow-sm border-border bg-card transition-colors">
-          <CardHeader className="bg-muted/30 border-b py-3 px-6">
-            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-              <Info className="w-4 h-4" />
-              Data Sources & Methodology
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-primary border-b border-primary/20 pb-1">Primary Data Universe</h3>
-                <div className="space-y-3">
-                  <div className="flex gap-3">
-                    <div className="w-1 h-auto bg-primary rounded-full" />
-                    <div>
-                      <p className="text-[11px] font-bold text-foreground uppercase tracking-tight">Yahoo Finance API</p>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        Live institutional-grade market data for price discovery, historical OHLC data, and real-time market capitalization. Provides the foundation for all quantitative return regression models.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="w-1 h-auto bg-primary rounded-full" />
-                    <div>
-                      <p className="text-[11px] font-bold text-foreground uppercase tracking-tight">Indian Markets Database (Internal)</p>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        Curated industry-wise classification list of over 4,700+ NSE and BSE listed entities. Used for high-precision peer group discovery and industry sector mapping.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-primary border-b border-primary/20 pb-1">Beta Calculation Model</h3>
-                <div className="space-y-3">
-                  <div className="flex gap-3">
-                    <div className="w-1 h-auto bg-muted-foreground/30 rounded-full" />
-                    <div>
-                      <p className="text-[11px] font-bold text-foreground uppercase tracking-tight">Regression Analysis</p>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        Calculated using ordinary least squares (OLS) regression of daily asset returns against benchmark index (NIFTY 50 or BSE SENSEX) returns over the selected look-back period (1Y/3Y/5Y).
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="w-1 h-auto bg-muted-foreground/30 rounded-full" />
-                    <div>
-                      <p className="text-[11px] font-bold text-foreground uppercase tracking-tight">Peer Selection Logic</p>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        System identifies peers through a multi-stage process: exact industry matching from internal classification, verified via live data summary, and ranked by market cap proximity to the target asset.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-8 pt-4 border-t border-border flex items-center justify-center gap-4 text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">
-              <span>Quantitative Risk Model v2.4</span>
-              <span className="w-1 h-1 bg-muted-foreground/30 rounded-full" />
-              <span>Real-time Financial Processing</span>
             </div>
           </CardContent>
         </Card>

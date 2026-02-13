@@ -159,9 +159,11 @@ export default function Home() {
 
       {/* Header Section */}
       <div className="space-y-1">
-        <h1 className="text-3xl font-black tracking-tighter text-foreground uppercase">
-          Akaldeep Analyser
-        </h1>
+        <a href="/" className="inline-block group">
+          <h1 className="text-3xl font-black tracking-tighter text-foreground uppercase group-hover:text-primary transition-colors">
+            Akaldeep Analyser
+          </h1>
+        </a>
         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
           Primary Risk Assessment for Listed Indian Equities
         </p>

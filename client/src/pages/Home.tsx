@@ -88,6 +88,7 @@ type FormValues = z.infer<typeof formSchema>;
 export default function Home() {
   const [showResults, setShowResults] = useState(false);
   const { mutate, isPending, data, error, reset: resetMutation } = useCalculateBeta();
+  const analysisResult = data;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -118,6 +119,44 @@ export default function Home() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
+      {/* Hero Section / Introduction */}
+      {!analysisResult && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-4xl mx-auto mb-12 text-center"
+        >
+          <h2 className="text-3xl md:text-5xl font-black tracking-tighter text-foreground mb-6 uppercase italic">
+            Institutional-Grade <span className="text-primary">Risk Intelligence</span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+            <div className="p-6 bg-card border border-border rounded-lg">
+              <h3 className="text-xs font-black uppercase tracking-widest text-primary mb-3">Beta Regression</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed uppercase tracking-tighter">
+                Calculate precise beta coefficients against NIFTY 50 or SENSEX benchmarks using return regression analysis.
+              </p>
+            </div>
+            <div className="p-6 bg-card border border-border rounded-lg">
+              <h3 className="text-xs font-black uppercase tracking-widest text-primary mb-3">Peer Discovery</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed uppercase tracking-tighter">
+                Automatic peer group identification based on Prof. Aswath Damodaran's industry classification of 4,700+ Indian equities.
+              </p>
+            </div>
+            <div className="p-6 bg-card border border-border rounded-lg">
+              <h3 className="text-xs font-black uppercase tracking-widest text-primary mb-3">Multiples Analysis</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed uppercase tracking-tighter">
+                Benchmark valuation multiples including EV/Revenue against comparable peers filtered by market cap proximity.
+              </p>
+            </div>
+          </div>
+          <div className="mt-8 p-4 bg-muted/30 rounded border border-dashed border-border inline-block">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+              Primary Risk Assessment for Listed Indian Equities
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       {/* Header Section */}
       <div className="space-y-1">
         <h1 className="text-3xl font-black tracking-tighter text-foreground uppercase">

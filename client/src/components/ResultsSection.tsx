@@ -168,22 +168,22 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 </div>
                 <div className="p-4 bg-muted/30 rounded-lg border border-border">
                   <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest flex items-center mb-1">
-                    Revenue (Cr)
-                    <MetricTooltip title="Total Revenue" definition="Total revenue reported by the company in the last fiscal period." />
+                    Revenue (Cr) [TTM]
+                    <MetricTooltip title="Total Revenue" definition="Total revenue reported by the company over the Trailing Twelve Months (TTM)." />
                   </div>
                   <div className="text-xl font-mono font-black text-foreground">
                     {data.revenue ? `₹${(data.revenue / 10000000).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : "N/A"}
                   </div>
                   {data.revenueDate && (
                     <div className="text-[8px] text-muted-foreground uppercase opacity-70 mt-1">
-                      {data.revenueDate}
+                      As of {data.revenueDate}
                     </div>
                   )}
                 </div>
                 <div className="p-4 bg-muted/30 rounded-lg border border-border">
                   <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest flex items-center mb-1">
-                    EV (Cr)
-                    <MetricTooltip title="Enterprise Value" definition="Total value of the company, calculated as market cap plus debt minus cash." />
+                    EV (Cr) [TTM]
+                    <MetricTooltip title="Enterprise Value" definition="Current Enterprise Value based on latest reported TTM financials." />
                   </div>
                   <div className="text-xl font-mono font-black text-foreground">
                     {data.enterpriseValue ? `₹${(data.enterpriseValue / 10000000).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : "N/A"}
@@ -290,10 +290,28 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                 <p className="text-[9px] text-muted-foreground mt-2 uppercase tracking-tighter text-center">Midpoint sensitivity representing industry norm</p>
               </div>
             </div>
-            <div className="p-3 bg-muted/20 text-center">
-              <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest italic">
-                * Statistical metrics derived from top {data.peers.length} peers in the {targetIndustryName || targetSector || "same"} industry by market cap proximity.
-              </p>
+            <div className="p-4 bg-muted/20 border-t border-border">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-foreground mb-2">Data Sources & Methodology</h4>
+                  <ul className="space-y-1">
+                    <li className="text-[9px] text-muted-foreground uppercase tracking-tighter">
+                      • Market Data: Real-time and historical pricing via Yahoo Finance API.
+                    </li>
+                    <li className="text-[9px] text-muted-foreground uppercase tracking-tighter">
+                      • Peer Classification: Based on Prof. Aswath Damodaran's Indian Companies Industry Classification.
+                    </li>
+                    <li className="text-[9px] text-muted-foreground uppercase tracking-tighter">
+                      • Financials: Revenue and Enterprise Value are Trailing Twelve Month (TTM) figures.
+                    </li>
+                  </ul>
+                </div>
+                <div className="text-center md:text-right flex flex-col justify-end">
+                  <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest italic">
+                    * Statistical metrics derived from top {data.peers.length} peers in the {targetIndustryName || targetSector || "same"} industry by market cap proximity.
+                  </p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -324,8 +342,8 @@ export function ResultsSection({ data }: ResultsSectionProps) {
                     <TableHead className="w-[15%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Asset Name</TableHead>
                     <TableHead className="w-[15%] py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Industry</TableHead>
                     <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mkt Cap (Cr)</TableHead>
-                    <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Revenue (Cr)</TableHead>
-                    <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">EV (Cr)</TableHead>
+                    <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Revenue (Cr) [TTM]</TableHead>
+                    <TableHead className="w-[10%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">EV (Cr) [TTM]</TableHead>
                     <TableHead className="w-[8%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">EV/REV</TableHead>
                     <TableHead className="w-[8%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Beta</TableHead>
                     <TableHead className="w-[8%] text-right py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Volatility</TableHead>
